@@ -1,0 +1,138 @@
+{
+  "@@locale": "en",
+  "appTitle": "MouseHero",
+  "status": "Status",
+  "running": "RUNNING",
+  "stopped": "STOPPED",
+  "address": "Address",
+  "stopServer": "Stop Server",
+  "startServer": "Start Server",
+  "scanToConnect": "Scan with MouseHero App to connect",
+  "logs": "Logs",
+  "clients": "{count} clients",
+  "settings": "Settings",
+  "themeMode": "Theme Mode",
+  "themeSystem": "System Default",
+  "themeLight": "Light Mode",
+  "themeDark": "Dark Mode",
+  "language": "Language",
+  "languageEnglish": "English",
+  "languageChinese": "Chinese",
+  "about": "About MouseHero",
+  "loading": "Loading...",
+  "dashboardServerStatus": "Server Status",
+  "dashboardScanToConnect": "Scan to Connect",
+  "dashboardServiceControl": "Service Control",
+  "dashboardOnlineClients": "Online Clients ({count})",
+  "dashboardStatusConnected": "Connected",
+  "dashboardStatusNotConnected": "Not Connected",
+  "dashboardStatusNoData": "No Data",
+  "dashboardStatusRunning": "Running",
+  "dashboardStatusStopped": "Stopped",
+  "dashboardButtonStop": "Stop",
+  "dashboardButtonRestart": "Restart",
+  "dashboardButtonStart": "Start Service",
+  "starting": "Starting...",
+  "dashboardActionSuccessStop": "Server stopped successfully.",
+  "dashboardActionSuccessRestart": "Server restarted successfully.",
+  "dashboardActionSuccessStart": "Server started successfully.",
+  "dashboardActionFailed": "Action failed: {error}",
+  "dashboardStatusError": "Error loading dashboard",
+  "retry": "Retry",
+  "dashboardNoClients": "No online clients",
+  "configLoadFailed": "Failed to load config: {error}",
+  "configSaveSuccess": "Config saved successfully!",
+  "configSaveFailed": "Failed to save config: {error}",
+  "configReset": "Reset",
+  "configSave": "Save Changes",
+  "configLabel": "Server Configuration (server.conf)",
+  "logPageTitle": "Logs",
+  "logLoadingError": "Failed to load logs",
+  "logTitle": "Logs",
+  "logNoRecords": "No log records found.",
+  "reset": "Reset",
+  "saveChanges": "Save Changes",
+  "configResetSuccess": "Configuration has been reset to default.",
+  "configResetFailed": "Failed to reset configuration: {error}",
+  "logClearTooltip": "Clear Logs",
+  "logAutoRefresh": "Auto-refresh",
+  "logClearSuccess": "Logs have been cleared.",
+  "logClearFailed": "Failed to clear logs: {error}",
+  "notAvailable": "N/A",
+  "sessionLabel": "Session",
+  "commandLabel": "Command",
+  "httpLabel": "HTTP",
+  "ipLabel": "IP",
+  "uidLabel": "UID",
+  "durationLabel": "Duration",
+  "hourUnit": "h",
+  "minuteUnit": "m",
+  "secondUnit": "s",
+  "logNoInfo": "No log information available",
+  "logRefreshTooltip": "Refresh logs",
+  "navDashboard": "Dashboard",
+  "navConfig": "Server Config",
+  "navLogs": "Logs",
+  "navSettings": "Settings",
+  "settingsLicense": "Open Source Licenses",
+  "settingsCheckForUpdates": "Check for Updates",
+  "settingsAuthor": "Author: {authorName}",
+  "@settingsAuthor": {
+    "placeholders": {
+      "authorName": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCopyright": "Copyright © 2024 {authorName}",
+  "@settingsCopyright": {
+    "placeholders": {
+      "authorName": {
+        "type": "String"
+      }
+    }
+  },
+  "configResetConfirmTitle": "Reset Configuration",
+  "configResetConfirmContent": "Are you sure you want to reset the configuration to default? This action cannot be undone.",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "startupOnBoot": "Start on system boot",
+  "startupOnBootSuccess": "Auto-start setting updated successfully",
+  "startupOnBootFailed": "Failed to update auto-start setting: {error}",
+  "@startupOnBootFailed": {
+    "description": "Message shown when failing to update auto-start setting",
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "ok": "OK",
+  "connectionError": "Connection Error",
+  "info": "Info",
+  "trayShowMainWindow": "Show Main Window",
+  "trayExit": "Exit",
+  "dashboardUpdateAvailable": "A new version {version} is available.",
+  "@dashboardUpdateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "dashboardUpdateButton": "Download",
+  "dashboardUpdateError": "Failed to check updates.",
+  "hideOnStartup": "Hide main window on startup",
+  "hideOnAutoStart": "Hide main window when auto-started on boot",
+  "settingStartMinimized": "Start minimized to tray",
+  "settingStartMinimizedSuccess": "Start minimized setting updated successfully",
+  "settingStartMinimizedFailed": "Failed to update start minimized setting: {error}",
+  "@settingStartMinimizedFailed": {
+    "description": "Message shown when failing to update start minimized setting",
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  }
+}

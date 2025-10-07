@@ -1,0 +1,382 @@
+name: Build
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    environment: ${{ matrix.environment }}
+    env:
+      ARCH: ${{ matrix.arch }}
+      BUILD_TYPE: Release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            runner: ubuntu-latest
+            arch: x86_64
+            environment: MAC
+          # - name: Linux
+          #   runner: ubuntu-24.04-arm
+          #   arch: arm64
+          #   environment: MAC
+          - name: macOS
+            runner: macos-15-intel
+            arch: x86_64
+            environment: MAC
+          - name: macOS
+            runner: macos-latest
+            arch: arm64
+            environment: MAC
+          - name: Windows
+            runner: windows-latest
+            arch: x86_64
+            environment: MAC
+          # - name: Windows
+          #   runner: windows-11-arm
+          #   arch: arm64
+          #   environment: MAC
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Determine version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            echo "VERSION=$REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=beta" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build clang pkg-config \
+            libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libayatana-appindicator3-dev libfuse2
+          if [ "${ARCH}" = "arm64" ]; then
+            rustup target add aarch64-unknown-linux-gnu
+          else
+            rustup target add x86_64-unknown-linux-gnu
+          fi
+        shell: bash
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake ninja
+          if [ "${ARCH}" = "arm64" ]; then
+            rustup target add aarch64-apple-darwin
+          else
+            rustup target add x86_64-apple-darwin
+          fi
+        shell: bash
+      - name: Import signing certificate
+        if: runner.os == 'macOS'
+        env:
+          MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAC_CERT_P12}" ] || [ -z "${MAC_CERT_PASSWORD}" ]; then
+            echo "Signing certificate secrets are not configured." >&2
+            exit 1
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          echo "$MAC_CERT_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$MAC_CERT_PASSWORD" -A
+          rm -f certificate.p12
+          security list-keychains -s "$KEYCHAIN_PATH" $(security list-keychains | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MAC_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if (-not (Test-Path "C:\tools\msys64")) {
+            choco install -y msys2
+          }
+          C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+          if ($env:ARCH -eq "arm64") {
+            C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-clang-aarch64-toolchain mingw-w64-clang-aarch64-cmake mingw-w64-clang-aarch64-ninja"
+            rustup target add aarch64-pc-windows-gnu
+          } else {
+            C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja"
+            rustup target add x86_64-pc-windows-gnu
+          }
+        shell: pwsh
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Fetch Flutter packages
+        run: flutter pub get
+        working-directory: server_gui
+
+      - name: Build on Linux
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x scripts/build_unified.sh
+          scripts/build_unified.sh --release --linux --clean --arch ${ARCH}
+        shell: bash
+
+      - name: Build on macOS
+        if: runner.os == 'macOS'
+        env:
+          SIGN_IDENTITY: ${{ secrets.MAC_SIGN_IDENTITY }}
+        run: |
+          chmod +x scripts/build_unified.sh
+          scripts/build_unified.sh --release --macos --clean --arch ${ARCH}
+        shell: bash
+
+      - name: Build on Windows
+        if: runner.os == 'Windows'
+        run: |
+          scripts\build_windows.bat --release --clean --arch $env:ARCH --msys2 C:\tools\msys64
+        shell: pwsh
+
+      - name: Prepare artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          ARCH="${ARCH:-x86_64}"
+          VERSION="${VERSION:-beta}"
+          APPIMAGE="dist/server_gui-${ARCH}-Release.AppImage"
+          if [ ! -f "$APPIMAGE" ]; then
+            echo "AppImage not found: $APPIMAGE" >&2
+            find dist -maxdepth 2 -type f -print
+            exit 1
+          fi
+          mv "$APPIMAGE" "dist/MouseHero-Linux-${ARCH}-${VERSION}.AppImage"
+          sha256sum "dist/MouseHero-Linux-${ARCH}-${VERSION}.AppImage" | tee "dist/MouseHero-Linux-${ARCH}-${VERSION}.AppImage.sha256"
+          rm -rf "dist/linux-${ARCH}" || true
+        shell: bash
+
+      - name: Prepare artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          ARCH="${ARCH:-x86_64}"
+          VERSION="${VERSION:-beta}"
+          SRC_DIR="dist/macos-${ARCH}"
+          DMG_PATH=$(find "$SRC_DIR" -maxdepth 1 -name "*.dmg" | head -n 1)
+          if [ -z "$DMG_PATH" ]; then
+            echo "DMG file not found under $SRC_DIR" >&2
+            ls -R dist
+            exit 1
+          fi
+          mv "$DMG_PATH" "dist/MouseHero-macOS-${ARCH}-${VERSION}.dmg"
+          shasum -a 256 "dist/MouseHero-macOS-${ARCH}-${VERSION}.dmg" | tee "dist/MouseHero-macOS-${ARCH}-${VERSION}.dmg.sha256"
+          rm -rf "$SRC_DIR" || true
+        shell: bash
+
+      - name: Notarize macOS dmg
+        if: runner.os == 'macOS'
+        env:
+          MAC_NOTARY_KEY: ${{ secrets.MAC_NOTARY_KEY }}
+          MAC_NOTARY_KEY_ID: ${{ secrets.MAC_NOTARY_KEY_ID }}
+          MAC_NOTARY_KEY_ISSUER: ${{ secrets.MAC_NOTARY_KEY_ISSUER }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAC_NOTARY_KEY}" ] || [ -z "${MAC_NOTARY_KEY_ID}" ] || [ -z "${MAC_NOTARY_KEY_ISSUER}" ]; then
+            echo "Notarization secrets are not configured." >&2
+            exit 1
+          fi
+          DMG_PATH=$(find dist -maxdepth 1 -name "MouseHero-macOS-${ARCH}-${VERSION}.dmg" | head -n 1)
+          if [ -z "$DMG_PATH" ]; then
+            echo "DMG not found for notarization." >&2
+            ls -R dist
+            exit 1
+          fi
+          AUTH_KEY="$RUNNER_TEMP/AuthKey.p8"
+          echo "$MAC_NOTARY_KEY" | base64 --decode > "$AUTH_KEY"
+          SUBMIT_JSON=$(xcrun notarytool submit "$DMG_PATH" \
+            --key "$AUTH_KEY" \
+            --key-id "$MAC_NOTARY_KEY_ID" \
+            --issuer "$MAC_NOTARY_KEY_ISSUER" \
+            --output-format json)
+          echo "$SUBMIT_JSON"
+          REQUEST_ID=$(echo "$SUBMIT_JSON" | plutil -extract id raw -)
+          if [ -z "$REQUEST_ID" ]; then
+            echo "Failed to parse notarization request ID" >&2
+            exit 1
+          fi
+          echo "Waiting for notarization request: $REQUEST_ID"
+          xcrun notarytool wait "$REQUEST_ID" \
+            --key "$AUTH_KEY" \
+            --key-id "$MAC_NOTARY_KEY_ID" \
+            --issuer "$MAC_NOTARY_KEY_ISSUER" \
+            --timeout 30m \
+            --output-format json > notary-wait.json
+          cat notary-wait.json
+          STATUS=$(plutil -extract status raw notary-wait.json)
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "Notarization failed with status: $STATUS" >&2
+            xcrun notarytool log "$REQUEST_ID" \
+              --key "$AUTH_KEY" \
+              --key-id "$MAC_NOTARY_KEY_ID" \
+              --issuer "$MAC_NOTARY_KEY_ISSUER"
+            exit 1
+          fi
+          xcrun stapler staple "$DMG_PATH"
+          rm -f "$AUTH_KEY"
+        shell: bash
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $arch = $env:ARCH
+          $version = $env:VERSION
+          if (-not $version) { $version = "beta" }
+          $sourceDir = Join-Path "dist" "windows-$arch"
+          if (-not (Test-Path $sourceDir)) {
+            Write-Error "Source directory not found: $sourceDir"
+          }
+          $zipPath = Join-Path "dist" "MouseHero-Windows-$arch-$version.zip"
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+          Compress-Archive -Path (Join-Path $sourceDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          $hashPath = "$zipPath.sha256"
+          Get-FileHash -Algorithm SHA256 $zipPath | ForEach-Object { $_.Hash + "  " + (Split-Path $zipPath -Leaf) } | Set-Content $hashPath -NoNewline
+          Remove-Item $sourceDir -Recurse -Force
+        shell: pwsh
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ matrix.arch }}-dist
+          path: dist/MouseHero-*
+
+      - name: Cleanup signing keychain
+        if: runner.os == 'macOS'
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi
+        shell: bash
+        continue-on-error: true
+
+      - name: Publish release assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/MouseHero-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Python dependencies for uploader
+        if: github.ref_type == 'tag' && !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHON_BIN="python3"
+          if ! command -v python3 >/dev/null 2>&1; then
+            PYTHON_BIN="python"
+          fi
+          VENV_DIR="$RUNNER_TEMP/upload-venv"
+          "$PYTHON_BIN" -m venv "$VENV_DIR"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            VENV_PYTHON="$VENV_DIR/Scripts/python.exe"
+          else
+            VENV_PYTHON="$VENV_DIR/bin/python"
+          fi
+          "$VENV_PYTHON" -m pip install --upgrade pip
+          "$VENV_PYTHON" -m pip install cos-python-sdk-v5 boto3
+          echo "UPLOAD_PYTHON=$VENV_PYTHON" >> "$GITHUB_ENV"
+
+      - name: Upload latest packages to Tencent COS
+        if: github.ref_type == 'tag' && !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')
+        shell: bash
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          COS_BUCKET: ${{ secrets.COS_BUCKET }}
+          COS_REGION: ${{ secrets.COS_REGION }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME="MouseHero-${{ matrix.name }}-${{ matrix.arch }}-${VERSION}"
+          FILE=$(find dist -maxdepth 1 -type f \( -name "${VERSION_NAME}.zip" -o -name "${VERSION_NAME}.dmg" -o -name "${VERSION_NAME}.AppImage" \) | head -n 1)
+          if [ -z "$FILE" ]; then
+            echo "Not found matching file: ${VERSION_NAME}" >&2
+            ls -R dist
+            exit 1
+          fi
+          EXT="${FILE##*.}"
+          LATEST_NAME="MouseHero-${{ matrix.name }}-${{ matrix.arch }}-latest.${EXT}"
+          rm -rf dist/latest
+          mkdir -p dist/latest
+          cp "$FILE" "dist/latest/${LATEST_NAME}"
+          PYTHON_BIN="${UPLOAD_PYTHON:-}"
+          if [ -z "$PYTHON_BIN" ]; then
+            PYTHON_BIN="python3"
+            if ! command -v python3 >/dev/null 2>&1; then
+              PYTHON_BIN="python"
+            fi
+          fi
+          "$PYTHON_BIN" scripts/tencent_upload.py --source dist/latest --bucket "$COS_BUCKET" --secret-id "$COS_SECRET_ID" --secret-key "$COS_SECRET_KEY" --region "$COS_REGION" --remote-prefix downloads
+
+      - name: Upload latest packages to Cloudflare R2
+        if: github.ref_type == 'tag' && !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')
+        shell: bash
+        env:
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_ENDPOINT: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          if [ ! -d dist/latest ]; then
+            echo "Not found dist/latest" >&2
+            exit 1
+          fi
+          PYTHON_BIN="${UPLOAD_PYTHON:-}"
+          if [ -z "$PYTHON_BIN" ]; then
+            PYTHON_BIN="python3"
+            if ! command -v python3 >/dev/null 2>&1; then
+              PYTHON_BIN="python"
+            fi
+          fi
+          CMD=("$PYTHON_BIN" scripts/r2_upload.py --source dist/latest --access-key "$CLOUDFLARE_R2_ACCESS_KEY_ID" --secret-key "$CLOUDFLARE_R2_SECRET_ACCESS_KEY" --account-id "$CLOUDFLARE_R2_ACCOUNT_ID" --bucket "$CLOUDFLARE_R2_BUCKET" --remote-prefix downloads)
+          if [ -n "${CLOUDFLARE_R2_ENDPOINT}" ]; then
+            CMD+=(--endpoint "$CLOUDFLARE_R2_ENDPOINT")
+          fi
+          "${CMD[@]}"
+

@@ -1,0 +1,26 @@
+diff --git a/sample/http-server.c b/sample/http-server.c
+index 049aabc4..34cf1fc4 100644
+--- a/sample/http-server.c
++++ b/sample/http-server.c
+@@ -384,7 +384,7 @@ parse_opts(int argc, char **argv)
+ }
+ 
+ static void
+-do_term(int sig, short events, void *arg)
++do_term(evutil_socket_t sig, short events, void *arg)
+ {
+ 	struct event_base *base = arg;
+ 	event_base_loopbreak(base);
+diff --git a/test/regress_main.c b/test/regress_main.c
+index 26656121..4521acae 100644
+--- a/test/regress_main.c
++++ b/test/regress_main.c
+@@ -242,7 +242,7 @@ basic_test_setup(const struct testcase_t *testcase)
+ 	evutil_socket_t spair[2] = { -1, -1 };
+ 	struct basic_test_data *data = NULL;
+ 
+-	thread_setup(THREAD_SELF());
++	thread_setup((THREAD_T)THREAD_SELF());
+ 
+ #ifndef _WIN32
+ 	if (testcase->flags & TT_ENABLE_IOCP_FLAG)

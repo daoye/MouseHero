@@ -1,0 +1,138 @@
+{
+  "@@locale": "zh",
+  "appTitle": "鼠标侠",
+  "status": "状态",
+  "running": "运行中",
+  "stopped": "已停止",
+  "address": "地址",
+  "stopServer": "停止服务",
+  "startServer": "启动服务",
+  "scanToConnect": "请使用 鼠标侠 客户端扫描二维码连接",
+  "logs": "实时日志",
+  "clients": "客户端 ({count})",
+  "settings": "配置",
+  "themeMode": "主题模式",
+  "themeSystem": "跟随系统",
+  "themeLight": "浅色模式",
+  "themeDark": "深色模式",
+  "language": "语言",
+  "languageEnglish": "英文",
+  "languageChinese": "中文",
+  "about": "关于 鼠标侠",
+  "loading": "加载中...",
+  "dashboardServerStatus": "服务端状态",
+  "dashboardScanToConnect": "扫码连接",
+  "dashboardServiceControl": "服务控制",
+  "dashboardOnlineClients": "在线客户端 ({count})",
+  "dashboardStatusConnected": "已连接",
+  "dashboardStatusNotConnected": "未连接",
+  "dashboardStatusNoData": "暂无数据",
+  "dashboardStatusRunning": "运行中",
+  "dashboardStatusStopped": "已停止",
+  "dashboardButtonStop": "停止",
+  "dashboardButtonRestart": "重启",
+  "dashboardButtonStart": "启动服务",
+  "starting": "启动中...",
+  "dashboardActionSuccessStop": "服务已成功停止",
+  "dashboardActionSuccessRestart": "服务重启成功。",
+  "dashboardActionSuccessStart": "服务已成功启动。",
+  "dashboardActionFailed": "操作失败：{error}",
+  "dashboardStatusError": "加载仪表盘时出错",
+  "retry": "重试",
+  "dashboardNoClients": "暂无在线客户端",
+  "configLoadFailed": "加载配置失败：{error}",
+  "configSaveSuccess": "配置已成功保存！",
+  "configSaveFailed": "保存配置失败：{error}",
+  "configReset": "重置",
+  "configSave": "保存更改",
+  "configLabel": "服务端配置 (server.conf)",
+  "logPageTitle": "日志",
+  "logLoadingError": "加载日志失败",
+  "logNoRecords": "暂无日志记录",
+  "logNoInfo": "没有可用的日志信息",
+  "logRefreshTooltip": "刷新日志",
+  "logTitle": "日志",
+  "reset": "重置",
+  "saveChanges": "保存更改",
+  "configResetSuccess": "配置已重置为默认值。",
+  "configResetFailed": "重置配置失败: {error}",
+  "logClearTooltip": "清空日志",
+  "logAutoRefresh": "自动刷新",
+  "logClearSuccess": "日志已清空。",
+  "logClearFailed": "清空日志失败: {error}",
+  "notAvailable": "不可用",
+  "sessionLabel": "会话",
+  "commandLabel": "命令",
+  "httpLabel": "HTTP",
+  "ipLabel": "IP",
+  "uidLabel": "用户ID",
+  "durationLabel": "时长",
+  "hourUnit": "小时",
+  "minuteUnit": "分",
+  "secondUnit": "秒",
+  "navDashboard": "概览",
+  "navConfig": "服务端配置",
+  "navLogs": "日志",
+  "navSettings": "设置",
+  "settingsLicense": "开源协议",
+  "settingsCheckForUpdates": "检查更新",
+  "settingsAuthor": "作者: {authorName}",
+  "@settingsAuthor": {
+    "placeholders": {
+      "authorName": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCopyright": "版权所有 © 2024 {authorName}",
+  "@settingsCopyright": {
+    "placeholders": {
+      "authorName": {
+        "type": "String"
+      }
+    }
+  },
+  "configResetConfirmTitle": "重置配置",
+  "configResetConfirmContent": "确定要将配置重置为默认值吗？此操作无法撤销。",
+  "cancel": "取消",
+  "confirm": "确认",
+  "startupOnBoot": "开机自动启动",
+  "startupOnBootSuccess": "开机启动设置已成功更新",
+  "startupOnBootFailed": "更新开机启动设置失败: {error}",
+  "@startupOnBootFailed": {
+    "description": "更新开机启动设置失败时显示的消息",
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "ok": "好的",
+  "connectionError": "连接错误",
+  "info": "信息",
+  "trayShowMainWindow": "显示主界面",
+  "trayExit": "退出",
+  "dashboardUpdateAvailable": "发现新版本 {version}",
+  "@dashboardUpdateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "dashboardUpdateButton": "立即前往",
+  "dashboardUpdateError": "检查更新失败",
+  "hideOnStartup": "启动时隐藏主窗口",
+  "hideOnAutoStart": "开机自启时隐藏主界面",
+  "settingStartMinimized": "启动时隐藏主界面",
+  "settingStartMinimizedSuccess": "隐藏主界面设置已成功更新",
+  "settingStartMinimizedFailed": "更新隐藏主界面设置失败: {error}",
+  "@settingStartMinimizedFailed": {
+    "description": "更新隐藏主界面设置失败时显示的消息",
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  }
+}
