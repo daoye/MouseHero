@@ -30,7 +30,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _waitting = false;
   bool _isRunning = false;
   UpdateCheckResult? _updateResult;
-  String? _updateError;
 
   String sessionAddr = 'unknow';
   String sessionPort = 'unknow';
@@ -100,13 +99,9 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       setState(() {
         _updateResult = result;
-        _updateError = result.hasError ? result.errorMessage : null;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _updateError = e.toString();
-      });
+      // Ignore update check errors
     }
   }
 

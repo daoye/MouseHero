@@ -245,6 +245,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navSettings => 'Settings';
 
   @override
+  String get aboutPermissionsMenu => 'How to Set Permissions';
+
+  @override
   String get settingsLicense => 'Open Source Licenses';
 
   @override
@@ -327,4 +330,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingStartMinimizedFailed(Object error) {
     return 'Failed to update start minimized setting: $error';
   }
+
+  @override
+  String get linuxPermissionsTitle => 'Permissions Setup Required';
+
+  @override
+  String get linuxPermissionsOnlyLinux =>
+      'This page is only available on Linux';
+
+  @override
+  String get linuxPermissionsSetupTitle => 'Setup Instructions';
+
+  @override
+  String get linuxPermissionsStep1 => '1. Add your user to the input group:';
+
+  @override
+  String get linuxPermissionsStep2 =>
+      '2. Copy the udev rule content below (you will paste it into the file created in Step 3):';
+
+  @override
+  String get linuxPermissionsStep3 =>
+      '3. Create (or open) the udev rule file, then paste the Step 2 content into it:';
+
+  @override
+  String get linuxPermissionsStep4 => '4. Reload udev rules:';
+
+  @override
+  String get linuxPermissionsStep5 =>
+      '5. Enable the uinput kernel module (load now and configure auto-load on boot):';
+
+  @override
+  String get linuxPermissionsStep6 =>
+      '6. Log out and back in (or reboot), launch MouseHero.';
+
+  @override
+  String get linuxPermissionsHelp => 'Help';
+
+  @override
+  String get linuxPermissionsCopied => 'Command copied to clipboard';
+
+  @override
+  String get linuxPermissionsRuleCopied => 'Rule copied to clipboard';
 }

@@ -30,6 +30,13 @@
 #include "ya_server_http.h"
 #include "ya_utils.h"
 
+#ifdef USE_UINPUT
+#include "input/backend/linux_uinput.h"
+#include "input/backend/xkb_mapper.h"
+#endif
+#include "input/facade.h"
+#include "input/keyboard/clipboard.h"
+
 extern YA_ServerContext svr_context;
 extern YA_Config config;
 
@@ -40,6 +47,12 @@ void fatal_cb(int code)
 
 void stop()
 {
+#ifdef USE_UINPUT
+    // 关闭输入后端
+    xkbmap_free();
+    input_linux_shutdown();
+#endif
+
     if (svr_context.listener)
     {
         evconnlistener_free(svr_context.listener);
@@ -204,6 +217,25 @@ int start_server() {
     svr_context.macs_csv = NULL;
     ya_server_set_state(YA_SERVER_INIT);
 
+#ifdef USE_UINPUT
+    // 初始化输入后端（Linux uinput）
+    if (input_linux_init() != INPUT_BACKEND_OK) {
+        YA_LOG_WARN("Failed to initialize input backend, input control may be unavailable");
+    } else {
+        YA_LOG_INFO("Input backend initialized successfully");
+    }
+    
+    // Initialize xkb mapping for character→key translation
+    if (xkbmap_init_auto() == 0) {
+        YA_LOG_INFO("XKB mapping initialized: layout source = %s", xkbmap_get_layout_source());
+    } else {
+        YA_LOG_WARN("XKB mapping initialization failed; character→key mapping unavailable");
+    }
+#endif
+
+    // Initialize clipboard helper (reads config)
+    clipboard_helper_init();
+    
     event_enable_debug_mode();
     event_set_fatal_callback(fatal_cb);
 

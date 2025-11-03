@@ -245,6 +245,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navSettings => '设置';
 
   @override
+  String get aboutPermissionsMenu => '如何设置权限';
+
+  @override
   String get settingsLicense => '开源协议';
 
   @override
@@ -325,4 +328,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingStartMinimizedFailed(Object error) {
     return '更新隐藏主界面设置失败: $error';
   }
+
+  @override
+  String get linuxPermissionsTitle => '需要设置权限';
+
+  @override
+  String get linuxPermissionsOnlyLinux => '此页面仅适用于 Linux 系统';
+
+  @override
+  String get linuxPermissionsSetupTitle => '设置步骤';
+
+  @override
+  String get linuxPermissionsStep1 => '1. 将当前用户添加到 input 用户组：';
+
+  @override
+  String get linuxPermissionsStep2 => '2. 复制下面的 udev 规则内容（你将在步骤 3 创建的文件中粘贴它）：';
+
+  @override
+  String get linuxPermissionsStep3 => '3. 创建（或打开）udev 规则文件，然后将步骤 2 的内容粘贴进去：';
+
+  @override
+  String get linuxPermissionsStep4 => '4. 重新加载 udev 规则：';
+
+  @override
+  String get linuxPermissionsStep5 => '5. 启用 uinput 内核模块（立即加载并设置开机自动加载）：';
+
+  @override
+  String get linuxPermissionsStep6 => '6. 注销并重新登录（或重启），启动 MouseHero。';
+
+  @override
+  String get linuxPermissionsHelp => '帮助';
+
+  @override
+  String get linuxPermissionsCopied => '命令已复制到剪贴板';
+
+  @override
+  String get linuxPermissionsRuleCopied => '规则已复制到剪贴板';
 }

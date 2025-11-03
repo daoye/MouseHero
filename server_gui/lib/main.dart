@@ -64,13 +64,8 @@ void main(List<String> args) async {
 
   try {
     await serverProcessService.cleanupOrphanedProcesses();
-
-    final lastRunningState = await settingsService.getServerLastRunning();
-    if (lastRunningState) {
-      await serverProcessService.startServer();
-    }
   } catch (e) {
-    debugPrint('启动或清理子进程失败: $e');
+    debugPrint('清理子进程失败: $e');
   }
 
   // if (shouldHide) {
@@ -123,7 +118,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
     SingleInstanceService().dispose();
     TrayService().dispose();
-    if(!Platform.isMacOS) {
+    if (!Platform.isMacOS) {
       // Form macos termite child process in native swift code, But other false
       await ServerProcessService().stopServer(manualStop: false);
     }

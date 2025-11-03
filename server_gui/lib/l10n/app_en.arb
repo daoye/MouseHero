@@ -74,6 +74,7 @@
   "navConfig": "Server Config",
   "navLogs": "Logs",
   "navSettings": "Settings",
+  "aboutPermissionsMenu": "How to Set Permissions",
   "settingsLicense": "Open Source Licenses",
   "settingsCheckForUpdates": "Check for Updates",
   "settingsAuthor": "Author: {authorName}",
@@ -134,5 +135,17 @@
         "type": "Object"
       }
     }
-  }
+  },
+  "linuxPermissionsTitle": "Permissions Setup Required",
+  "linuxPermissionsOnlyLinux": "This page is only available on Linux",
+  "linuxPermissionsSetupTitle": "Setup Instructions",
+  "linuxPermissionsStep1": "1. Add your user to the input group:",
+  "linuxPermissionsStep2": "2. Copy the udev rule content below (you will paste it into the file created in Step 3):",
+  "linuxPermissionsStep3": "3. Create (or open) the udev rule file, then paste the Step 2 content into it:",
+  "linuxPermissionsStep4": "4. Reload udev rules:",
+  "linuxPermissionsStep5": "5. Enable the uinput kernel module (load now and configure auto-load on boot):",
+  "linuxPermissionsStep6": "6. Log out and back in (or reboot), launch MouseHero.",
+  "linuxPermissionsHelp": "Help",
+  "linuxPermissionsCopied": "Command copied to clipboard",
+  "linuxPermissionsRuleCopied": "Rule copied to clipboard"
 }

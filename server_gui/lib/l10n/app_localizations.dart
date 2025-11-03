@@ -542,6 +542,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get navSettings;
 
+  /// No description provided for @aboutPermissionsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'How to Set Permissions'**
+  String get aboutPermissionsMenu;
+
   /// No description provided for @settingsLicense.
   ///
   /// In en, this message translates to:
@@ -685,6 +691,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to update start minimized setting: {error}'**
   String settingStartMinimizedFailed(Object error);
+
+  /// No description provided for @linuxPermissionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions Setup Required'**
+  String get linuxPermissionsTitle;
+
+  /// No description provided for @linuxPermissionsOnlyLinux.
+  ///
+  /// In en, this message translates to:
+  /// **'This page is only available on Linux'**
+  String get linuxPermissionsOnlyLinux;
+
+  /// No description provided for @linuxPermissionsSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup Instructions'**
+  String get linuxPermissionsSetupTitle;
+
+  /// No description provided for @linuxPermissionsStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'1. Add your user to the input group:'**
+  String get linuxPermissionsStep1;
+
+  /// No description provided for @linuxPermissionsStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'2. Copy the udev rule content below (you will paste it into the file created in Step 3):'**
+  String get linuxPermissionsStep2;
+
+  /// No description provided for @linuxPermissionsStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'3. Create (or open) the udev rule file, then paste the Step 2 content into it:'**
+  String get linuxPermissionsStep3;
+
+  /// No description provided for @linuxPermissionsStep4.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Reload udev rules:'**
+  String get linuxPermissionsStep4;
+
+  /// No description provided for @linuxPermissionsStep5.
+  ///
+  /// In en, this message translates to:
+  /// **'5. Enable the uinput kernel module (load now and configure auto-load on boot):'**
+  String get linuxPermissionsStep5;
+
+  /// No description provided for @linuxPermissionsStep6.
+  ///
+  /// In en, this message translates to:
+  /// **'6. Log out and back in (or reboot), launch MouseHero.'**
+  String get linuxPermissionsStep6;
+
+  /// No description provided for @linuxPermissionsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get linuxPermissionsHelp;
+
+  /// No description provided for @linuxPermissionsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Command copied to clipboard'**
+  String get linuxPermissionsCopied;
+
+  /// No description provided for @linuxPermissionsRuleCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Rule copied to clipboard'**
+  String get linuxPermissionsRuleCopied;
 }
 
 class _AppLocalizationsDelegate
