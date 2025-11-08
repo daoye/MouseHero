@@ -137,6 +137,7 @@
     }
   },
   "linuxPermissionsTitle": "Permissions Setup Required",
+  "linuxPermissionsRequiredTitle": "You need to grant MouseHero access to the uinput device",
   "linuxPermissionsOnlyLinux": "This page is only available on Linux",
   "linuxPermissionsSetupTitle": "Setup Instructions",
   "linuxPermissionsStep1": "1. Add your user to the input group:",

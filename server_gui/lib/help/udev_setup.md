@@ -76,8 +76,45 @@ echo "uinput" | sudo tee /etc/modules-load.d/mousehero-uinput.conf
 - Run the container with device passthrough
 - Or run MouseHero on the host machine
 
-### Q: How to revoke permission settings?
+### Q: Permissions still denied even though I'm in the input group
 
+**A:** The `/dev/uinput` device permissions may be controlled by ACL (Access Control Lists), which can override the standard group permissions. This causes the `input` group to have no access even though you're a member of the group.
+
+**Diagnosis:** Check if ACL has removed group permissions:
+
+```bash
+getfacl /dev/uinput
+```
+
+If you see `group::---` (no permissions for the group), this is the issue.
+
+**Solution:** Restore the group permissions using ACL:
+
+```bash
+sudo setfacl -m g:input:rw /dev/uinput
+```
+
+**Permanent fix:** To prevent this from happening after reboot, you may need to:
+1. Check for conflicting udev rules from other packages (e.g., brltty):
+   ```bash
+   ls -la /etc/udev/rules.d/*uinput* /usr/lib/udev/rules.d/*uinput*
+   ```
+2. Adjust your udev rule priority by renaming it to run later (higher number):
+   ```bash
+   sudo mv /etc/udev/rules.d/99-mousehero-uinput.rules /etc/udev/rules.d/99-zzz-mousehero-uinput.rules
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   ```
+3. Or add ACL settings to your udev rule by modifying `/etc/udev/rules.d/99-mousehero-uinput.rules`:
+   ```
+   KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", RUN+="/usr/bin/setfacl -m g:input:rw /dev/uinput"
+   ```
+
+After making changes, reload udev rules and trigger:
+```bash
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+### Q: How to revoke permission settings?
 
 **A:** Delete the udev rule file and reload:
 

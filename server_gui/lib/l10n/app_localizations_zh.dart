@@ -333,6 +333,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get linuxPermissionsTitle => '需要设置权限';
 
   @override
+  String get linuxPermissionsRequiredTitle => '您需要赋予MouseHero访问uinput设备的权限';
+
+  @override
   String get linuxPermissionsOnlyLinux => '此页面仅适用于 Linux 系统';
 
   @override

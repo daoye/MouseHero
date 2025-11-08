@@ -31,7 +31,7 @@ class LinuxPermissionsService {
       final handle = await device.open(mode: FileMode.write);
       await handle.close();
       return true;
-    } catch (_) {
+    } catch (e) {
       return false;
     }
   }

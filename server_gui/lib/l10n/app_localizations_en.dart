@@ -335,6 +335,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linuxPermissionsTitle => 'Permissions Setup Required';
 
   @override
+  String get linuxPermissionsRequiredTitle =>
+      'You need to grant MouseHero access to the uinput device';
+
+  @override
   String get linuxPermissionsOnlyLinux =>
       'This page is only available on Linux';
 

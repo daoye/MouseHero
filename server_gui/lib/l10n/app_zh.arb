@@ -137,6 +137,7 @@
     }
   },
   "linuxPermissionsTitle": "需要设置权限",
+  "linuxPermissionsRequiredTitle": "您需要赋予MouseHero访问uinput设备的权限",
   "linuxPermissionsOnlyLinux": "此页面仅适用于 Linux 系统",
   "linuxPermissionsSetupTitle": "设置步骤",
   "linuxPermissionsStep1": "1. 将当前用户添加到 input 用户组：",

@@ -698,6 +698,12 @@ abstract class AppLocalizations {
   /// **'Permissions Setup Required'**
   String get linuxPermissionsTitle;
 
+  /// No description provided for @linuxPermissionsRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You need to grant MouseHero access to the uinput device'**
+  String get linuxPermissionsRequiredTitle;
+
   /// No description provided for @linuxPermissionsOnlyLinux.
   ///
   /// In en, this message translates to:

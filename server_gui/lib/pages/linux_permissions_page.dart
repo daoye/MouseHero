@@ -6,7 +6,12 @@ import 'package:server_gui/l10n/app_localizations.dart';
 import 'package:server_gui/services/linux_permissions_service.dart';
 
 class LinuxPermissionsPage extends StatefulWidget {
-  const LinuxPermissionsPage({super.key});
+  final bool showBackButton;
+  
+  const LinuxPermissionsPage({
+    super.key,
+    this.showBackButton = true,
+  });
 
   @override
   State<LinuxPermissionsPage> createState() => _LinuxPermissionsPageState();
@@ -278,16 +283,20 @@ class _LinuxPermissionsPageState extends State<LinuxPermissionsPage> {
     }
 
     return ScaffoldPage(
-      header: PageHeader(
-        leading: Padding(
-          padding: EdgeInsetsGeometry.symmetric(horizontal: 20),
-          child: IconButton(
-            icon: const Icon(FluentIcons.back, size: 18),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-        ),
-        title: Text(l10n.aboutPermissionsMenu),
-      ),
+      header: widget.showBackButton
+          ? PageHeader(
+              leading: Padding(
+                padding: EdgeInsetsGeometry.symmetric(horizontal: 20),
+                child: IconButton(
+                  icon: const Icon(FluentIcons.back, size: 18),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+              title: Text(l10n.aboutPermissionsMenu),
+            )
+          : PageHeader(
+              title: Text(l10n.linuxPermissionsRequiredTitle),
+            ),
       content: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

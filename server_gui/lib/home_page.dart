@@ -86,7 +86,7 @@ class _HomePageState extends State<HomePage> {
         body: Padding(
           padding: EdgeInsets.all(16),
           child: Platform.isLinux && !_hasPermissions
-              ? const LinuxPermissionsPage()
+              ? const LinuxPermissionsPage(showBackButton: false)
               : const DashboardPage(),
         ),
       ),
