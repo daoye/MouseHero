@@ -3,8 +3,12 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <linux/input-event-codes.h>
 
+#ifdef __linux__
+#include <linux/input-event-codes.h>
+#endif
+
+#ifdef __linux__
 #ifdef HAVE_LIBXKBCOMMON
 #include <xkbcommon/xkbcommon.h>
 #ifdef HAVE_LIBXKBCOMMON_X11
@@ -296,18 +300,6 @@ void xkbmap_free(void) {
     if (g_xkb.ctx) {
         xkb_context_unref(g_xkb.ctx);
         g_xkb.ctx = NULL;
-    }
-    
-    g_xkb.initialized = false;
-    YA_LOG_INFO("xkbmap: freed resources");
-#endif
-}
-
-bool xkbmap_map_utf8_to_evdev(const char* utf8, int* evdev_key, unsigned* mods_mask) {
-#ifdef HAVE_LIBXKBCOMMON
-    if (!g_xkb.initialized || !utf8 || !evdev_key || !mods_mask) {
-        return false;
-    }
     
     // Decode UTF-8 to code point (simple single-byte or multi-byte)
     uint32_t cp = 0;
@@ -349,3 +341,25 @@ const char* xkbmap_get_layout_source(void) {
     }
     return "uninitialized";
 }
+
+#else // __linux__
+
+int xkbmap_init_auto(void) {
+    YA_LOG_WARN("xkbmap: unsupported platform");
+    return -1;
+}
+
+void xkbmap_free(void) {}
+
+bool xkbmap_map_utf8_to_evdev(const char* utf8, int* evdev_key, unsigned* mods_mask) {
+    (void)utf8;
+    (void)evdev_key;
+    (void)mods_mask;
+    return false;
+}
+
+const char* xkbmap_get_layout_source(void) {
+    return "unsupported";
+}
+
+#endif // __linux__
