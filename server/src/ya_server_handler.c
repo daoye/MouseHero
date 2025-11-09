@@ -107,6 +107,10 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
+    // 获取客户端版本信息
+    YAAuthorizeEventRequest *request = (YAAuthorizeEventRequest *)event->param;
+    uint32_t client_version = request->version;
+
     YAEvent *response_event = assign_response(event, sizeof(YAAuthorizeEventResponse));
     if (!response_event)
     {
@@ -126,6 +130,8 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
     response->session_port = 0;
     response->command_port = 0;
     response->macs = NULL;
+    // 存储客户端版本，序列化函数将根据此决定响应格式
+    response->client_version = client_version;
     // 填充服务端 OS 类型
     #if defined(_WIN32) || defined(_WIN64)
         response->os_type = OS_WINDOWS;
@@ -179,6 +185,7 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
         response->command_port = 0;
         response->macs = strdup("");
         response->display_scale = 1.0f;
+        response->client_version = client_version;
     }
 
     return response_event;

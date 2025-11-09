@@ -30,6 +30,9 @@
 
 #define DISCOVERY_MAGIC 0x4B424D43
 
+// Protocol version for client-server compatibility check
+#define YA_PROTOCOL_VERSION 2
+
 typedef enum
 {
     MOUSE_MOVE = 0x1,
@@ -161,6 +164,7 @@ typedef struct
     uint16_t command_port;
     char *macs;
     float display_scale; // 主显示器逻辑缩放因子（例如 1.0、1.25、2.0）
+    uint32_t client_version; // 客户端协议版本号，用于响应序列化兼容判断
 } YAAuthorizeEventResponse;
 
 typedef struct
