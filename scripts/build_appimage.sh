@@ -150,6 +150,14 @@ while IFS= read -r line; do
   fi
 done <<< "$LDD_OUTPUT"
 
+# Manually copy runtime-loaded libraries that ldd won't detect
+echo "[INFO] Copying runtime-loaded libraries..."
+copy_lib_recursive "$SYS_LIB_DIR/libayatana-appindicator3.so.1"
+copy_lib_recursive "$SYS_LIB_DIR/libayatana-ido3-0.4.so.0"
+copy_lib_recursive "$SYS_LIB_DIR/libayatana-indicator3.so.7"
+copy_lib_recursive "$SYS_LIB_DIR/libdbusmenu-glib.so.4"
+copy_lib_recursive "$SYS_LIB_DIR/libdbusmenu-gtk3.so.4"
+
 # Copy GTK and GDK resources
 echo "[INFO] Copying GTK resources..."
 if [[ -d "$SYS_LIB_DIR/gtk-3.0" ]]; then
