@@ -266,12 +266,17 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
     const int dx_px = (int)(fdx >= 0.0 ? fdx + 0.5 : fdx - 0.5); // 四舍五入为像素
     const int dy_px = (int)(fdy >= 0.0 ? fdy + 0.5 : fdy - 0.5);
 
+    YA_LOG_TRACE("[handler] Received: raw=(%d,%d) -> pixels=(%d,%d)", rx, ry, dx_px, dy_px);
+
     int out_dx = dx_px;
     int out_dy = dy_px;
     if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
     {
+        YA_LOG_TRACE("[handler] Throttled, accumulated but not emitted yet");
         return NULL;
     }
+
+    YA_LOG_TRACE("[handler] After throttle: (%d,%d)", out_dx, out_dy);
 
     ya_mouse_step_t steps[128];
     size_t out_n = 0;
@@ -302,6 +307,71 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
             YA_LOG_ERROR("Failed to move mouse (step %zu/%zu): %d", i + 1, out_n, e);
         }
     }
+#endif
+    return NULL;
+}
+
+YAEvent *handle_mouse_stop(struct bufferevent *bev, YAEvent *event)
+{
+#ifndef YAYA_TESTS
+    if (!event)
+    {
+        YA_LOG_ERROR("Invalid mouse stop event");
+        return NULL;
+    }
+
+    ya_client_t *client = ya_client_find_by_uid(&svr_context.client_manager, event->header.uid);
+    if (!client)
+    {
+        YA_LOG_WARN("Mouse stop: client not found for uid=%u, Ignore.", event->header.uid);
+        return NULL;
+    }
+
+    YA_LOG_TRACE("[handler] Mouse stop event received, flushing throttle and resetting filter");
+
+    // 刷新节流器中累积的移动
+    int out_dx = 0, out_dy = 0;
+    if (ya_mouse_throttle_flush(&out_dx, &out_dy))
+    {
+        YA_LOG_TRACE("[handler] Flushed throttle: (%d,%d)", out_dx, out_dy);
+
+        ya_mouse_step_t steps[128];
+        size_t out_n = 0;
+
+        if (client->mouse_filter)
+        {
+            ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, (sizeof(steps) / sizeof(steps[0])), &out_n);
+        }
+        else
+        {
+            steps[0].dx = out_dx;
+            steps[0].dy = out_dy;
+            out_n = 1;
+        }
+
+        for (size_t i = 0; i < out_n; ++i)
+        {
+            int dx = steps[i].dx;
+            int dy = steps[i].dy;
+            if (dx == 0 && dy == 0)
+                continue;
+
+            YAError e = input_mouse_move(dx, dy);
+            if (e != Success)
+            {
+                YA_LOG_ERROR("Failed to move mouse (flush step %zu/%zu): %d", i + 1, out_n, e);
+            }
+        }
+    }
+
+    // 重置滤波器状态（清除EMA速度和子像素累积）
+    if (client->mouse_filter)
+    {
+        ya_mouse_filter_reset_state(client->mouse_filter);
+    }
+
+    // 重置节流器状态
+    ya_mouse_throttle_reset();
 #endif
     return NULL;
 }
@@ -744,6 +814,7 @@ static const struct
     ya_event_handler_t handler;
 } event_handlers[] = {
     {MOUSE_MOVE, handle_mouse_move},
+    {MOUSE_STOP, handle_mouse_stop},
     {MOUSE_CLICK, handle_mouse_click},
     {MOUSE_WHEEL, handle_mouse_scroll},
     {KEYBOARD, handle_keyboard}, 

@@ -15,6 +15,7 @@ YAEvent *assign_response(YAEvent *request_event, size_t response_param_len);
 YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event);
 YAEvent *handle_heartbeat(struct bufferevent *bev, YAEvent *event);
 YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event);
+YAEvent *handle_mouse_stop(struct bufferevent *bev, YAEvent *event);
 YAEvent *handle_mouse_click(struct bufferevent *bev, YAEvent *event);
 YAEvent *handle_mouse_scroll(struct bufferevent *bev, YAEvent *event);
 YAEvent *handle_keyboard(struct bufferevent *bev, YAEvent *event);

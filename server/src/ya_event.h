@@ -41,6 +41,7 @@ typedef enum
     TEXT_GET = 0x6,
 
     DISCOVER = 0x7,
+    MOUSE_STOP = 0x8,
     CONTROL = 0x9,
     AUTHORIZE = 0xA,
     HEARTBEAT = 0xB,
