@@ -58,6 +58,7 @@
 #define kVK_ANSI_M 0x2E
 #define kVK_ANSI_Period 0x2F
 #define kVK_ANSI_Grave 0x32
+#define kVK_Space 0x31
 #endif
 
 #ifdef USE_UINPUT
@@ -167,6 +168,7 @@ bool map_char_to_platform_macos(int32_t ch, uint32_t *platform_code, bool *need_
     case 'z': case 'Z': *platform_code = kVK_ANSI_Z; *need_shift = (ch == 'Z'); return true;
     
     // Digits and symbols
+    case ' ': *platform_code = kVK_Space; return true;
     case '0': *platform_code = kVK_ANSI_0; return true; case ')': *need_shift = true; *platform_code = kVK_ANSI_0; return true;
     case '1': *platform_code = kVK_ANSI_1; return true; case '!': *need_shift = true; *platform_code = kVK_ANSI_1; return true;
     case '2': *platform_code = kVK_ANSI_2; return true; case '@': *need_shift = true; *platform_code = kVK_ANSI_2; return true;
