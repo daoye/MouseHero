@@ -36,6 +36,10 @@ pub enum YAError {
     ClipboardError = -2,
     /// Invalid input provided
     InvalidInput = -3,
+    /// Operation not supported
+    UnsupportedOperation = -4,
+    /// Resource not found (e.g., mapping miss)
+    NotFound = -5,
 }
 
 #[no_mangle]

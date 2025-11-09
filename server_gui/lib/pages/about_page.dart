@@ -1,7 +1,10 @@
+import 'dart:io' show Platform;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' show ThemeMode, showLicensePage;
 import 'package:provider/provider.dart';
 import 'package:server_gui/l10n/app_localizations.dart';
+import 'package:server_gui/pages/linux_permissions_page.dart';
 import 'package:server_gui/providers/settings_provider.dart';
 import 'package:server_gui/services/startup_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -189,6 +192,21 @@ class _AboutPageState extends State<AboutPage> {
           onPressed: () => _launchUrl(websiteUri),
         ),
         const SizedBox(height: 8),
+        if (Platform.isLinux) ...[
+          ListTile(
+            leading: const Icon(FluentIcons.permissions),
+            title: Text(l10n.aboutPermissionsMenu),
+            trailing: const Icon(FluentIcons.chevron_right),
+            onPressed: () {
+              Navigator.of(context).push(
+                FluentPageRoute(
+                  builder: (_) => const LinuxPermissionsPage(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
         // 开源协议
         ListTile(
           leading: const Icon(FluentIcons.document),

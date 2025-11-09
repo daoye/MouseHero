@@ -26,7 +26,8 @@ add_subdirectory(rs)
 
 include_directories(
   ${CMAKE_BINARY_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/rs/target/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/mpack)
+  ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/mpack
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/input)
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
 
@@ -35,6 +36,44 @@ file(GLOB SERVER_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
 )
 list(REMOVE_ITEM SERVER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/run.c")
+
+# 添加 input 模块源文件
+file(GLOB INPUT_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/input/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/input/keyboard/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/input/backend/*.c"
+)
+list(APPEND SERVER_SRC ${INPUT_SRC})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_definitions(-DUSE_UINPUT)
+    
+    # Detect and link libxkbcommon for character→key mapping
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(XKBCOMMON QUIET xkbcommon)
+        if(XKBCOMMON_FOUND)
+            add_definitions(-DHAVE_LIBXKBCOMMON)
+            include_directories(${XKBCOMMON_INCLUDE_DIRS})
+            link_directories(${XKBCOMMON_LIBRARY_DIRS})
+            message(STATUS "Found libxkbcommon: ${XKBCOMMON_VERSION}")
+        else()
+            message(FATAL_ERROR "libxkbcommon not found; it is required for character→key mapping")
+        endif()
+
+        # Detect libxkbcommon-x11 for X11 layout detection (required)
+        pkg_check_modules(XKBCOMMON_X11 QUIET xkbcommon-x11)
+        if(XKBCOMMON_X11_FOUND)
+            add_definitions(-DHAVE_LIBXKBCOMMON_X11)
+            include_directories(${XKBCOMMON_X11_INCLUDE_DIRS})
+            link_directories(${XKBCOMMON_X11_LIBRARY_DIRS})
+            message(STATUS "Found libxkbcommon-x11: ${XKBCOMMON_X11_VERSION}")
+        else()
+            message(FATAL_ERROR "libxkbcommon-x11 not found; it is required for X11 layout detection")
+        endif()
+    endif()
+endif()
+
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/mpack  MPACK_SRC)
 
 # 创建核心库
@@ -53,7 +92,14 @@ elseif(CMAKE_SYSTEM STREQUAL "Darwin")
     "-framework AppKit"
   )
 else()
-  target_link_libraries(server_lib PUBLIC event.a rs pthread xdo xkbcommon wayland-client)
+  set(LINUX_LIBS event.a rs pthread)
+  if(XKBCOMMON_FOUND)
+    list(APPEND LINUX_LIBS ${XKBCOMMON_LIBRARIES})
+  endif()
+  if(XKBCOMMON_X11_FOUND)
+    list(APPEND LINUX_LIBS ${XKBCOMMON_X11_LIBRARIES} xcb)
+  endif()
+  target_link_libraries(server_lib PUBLIC ${LINUX_LIBS})
 endif()
 
 

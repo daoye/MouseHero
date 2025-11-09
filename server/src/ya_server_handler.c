@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "key_inject.h"
+#include "input/keyboard/handler.h"
+#include "input/keyboard/clipboard.h"
 #include "keycode_map.h"
 #include "rs.h"
 #include "ya_authorize.h"
@@ -17,8 +18,7 @@
 #include "ya_server.h"
 #include "ya_server_handler.h"
 #include "ya_power_scripts.h"
-
- 
+#include "input/facade.h"
 
 extern YA_ServerContext svr_context;
 
@@ -107,6 +107,10 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
+    // 获取客户端版本信息
+    YAAuthorizeEventRequest *request = (YAAuthorizeEventRequest *)event->param;
+    uint32_t client_version = request->version;
+
     YAEvent *response_event = assign_response(event, sizeof(YAAuthorizeEventResponse));
     if (!response_event)
     {
@@ -126,6 +130,8 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
     response->session_port = 0;
     response->command_port = 0;
     response->macs = NULL;
+    // 存储客户端版本，序列化函数将根据此决定响应格式
+    response->client_version = client_version;
     // 填充服务端 OS 类型
     #if defined(_WIN32) || defined(_WIN64)
         response->os_type = OS_WINDOWS;
@@ -179,6 +185,7 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
         response->command_port = 0;
         response->macs = strdup("");
         response->display_scale = 1.0f;
+        response->client_version = client_version;
     }
 
     return response_event;
@@ -266,15 +273,17 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
     const int dx_px = (int)(fdx >= 0.0 ? fdx + 0.5 : fdx - 0.5); // 四舍五入为像素
     const int dy_px = (int)(fdy >= 0.0 ? fdy + 0.5 : fdy - 0.5);
 
+    YA_LOG_TRACE("[handler] Received: raw=(%d,%d) -> pixels=(%d,%d)", rx, ry, dx_px, dy_px);
+
     int out_dx = dx_px;
     int out_dy = dy_px;
-    if (ya_is_wayland_session())
+    if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
     {
-        if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
-        {
-            return NULL;
-        }
+        YA_LOG_TRACE("[handler] Throttled, accumulated but not emitted yet");
+        return NULL;
     }
+
+    YA_LOG_TRACE("[handler] After throttle: (%d,%d)", out_dx, out_dy);
 
     ya_mouse_step_t steps[128];
     size_t out_n = 0;
@@ -298,13 +307,78 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
         int dy = steps[i].dy;
         if (dx == 0 && dy == 0)
             continue;
-        enum YAError e = Success;
-        e = move_mouse(dx, dy, Rel);
+        
+        YAError e = input_mouse_move(dx, dy);
         if (e != Success)
         {
             YA_LOG_ERROR("Failed to move mouse (step %zu/%zu): %d", i + 1, out_n, e);
         }
     }
+#endif
+    return NULL;
+}
+
+YAEvent *handle_mouse_stop(struct bufferevent *bev, YAEvent *event)
+{
+#ifndef YAYA_TESTS
+    if (!event)
+    {
+        YA_LOG_ERROR("Invalid mouse stop event");
+        return NULL;
+    }
+
+    ya_client_t *client = ya_client_find_by_uid(&svr_context.client_manager, event->header.uid);
+    if (!client)
+    {
+        YA_LOG_WARN("Mouse stop: client not found for uid=%u, Ignore.", event->header.uid);
+        return NULL;
+    }
+
+    YA_LOG_TRACE("[handler] Mouse stop event received, flushing throttle and resetting filter");
+
+    // 刷新节流器中累积的移动
+    int out_dx = 0, out_dy = 0;
+    if (ya_mouse_throttle_flush(&out_dx, &out_dy))
+    {
+        YA_LOG_TRACE("[handler] Flushed throttle: (%d,%d)", out_dx, out_dy);
+
+        ya_mouse_step_t steps[128];
+        size_t out_n = 0;
+
+        if (client->mouse_filter)
+        {
+            ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, (sizeof(steps) / sizeof(steps[0])), &out_n);
+        }
+        else
+        {
+            steps[0].dx = out_dx;
+            steps[0].dy = out_dy;
+            out_n = 1;
+        }
+
+        for (size_t i = 0; i < out_n; ++i)
+        {
+            int dx = steps[i].dx;
+            int dy = steps[i].dy;
+            if (dx == 0 && dy == 0)
+                continue;
+
+            YAError e = input_mouse_move(dx, dy);
+            if (e != Success)
+            {
+                YA_LOG_ERROR("Failed to move mouse (flush step %zu/%zu): %d", i + 1, out_n, e);
+            }
+        }
+    }
+
+    // 重置滤波器状态（清除EMA速度和子像素累积）
+    if (client->mouse_filter)
+    {
+        ya_mouse_filter_reset_state(client->mouse_filter);
+    }
+
+    // 重置节流器状态
+    ya_mouse_throttle_reset();
 #endif
     return NULL;
 }
@@ -367,19 +441,26 @@ YAEvent *handle_mouse_click(struct bufferevent *bev, YAEvent *event)
 
     YA_LOG_TRACE("Mouse click mapped {btn=%d, dir=%d} from {lparam=%d, rparam=%d}", (int)btn, (int)dir, request->lparam,
                  request->rparam);
-    enum YAError err = Success;
+
+    YAError err = Success;
     if (request->rparam == 3)
     {
         // DoubleClick: 连续两次 Click
-        err = mouse_button(btn, Click);
+        err = input_mouse_button(btn, Click);
         if (err == Success)
         {
-            err = mouse_button(btn, Click);
+            err = input_mouse_button(btn, Click);
         }
     }
     else
     {
-        err = mouse_button(btn, dir);
+        err = input_mouse_button(btn, dir);
+    }
+    
+    if (err != Success)
+    {
+        YA_LOG_ERROR("Mouse button event failed (dir=%d, double=%d): error %d",
+                     (int)dir, request->rparam == 3, err);
     }
 #endif
     return NULL;
@@ -409,43 +490,21 @@ YAEvent *handle_mouse_scroll(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
-    enum CButton wheel_btn;
-    switch (request->rparam)
-    {
-    case 0:
-        wheel_btn = ScrollUp;
-        break;
-    case 1:
-        wheel_btn = ScrollDown;
-        break;
-    case 2:
-        wheel_btn = ScrollLeft;
-        break;
-    case 3:
-        wheel_btn = ScrollRight;
-        break;
-    default:
-        YA_LOG_ERROR("Invalid wheel direction: %d", request->rparam);
-        return NULL;
-    }
-
     int steps = amount;
     if (steps > 1000)
         steps = 1000;
 
-    const char *dir_str = (wheel_btn == ScrollUp)     ? "up"
-                          : (wheel_btn == ScrollDown) ? "down"
-                          : (wheel_btn == ScrollLeft) ? "left"
-                                                      : "right";
+    int dir = request->rparam; // 0=up, 1=down, 2=left, 3=right
+    const char *dir_str = (dir == 0) ? "up"
+                          : (dir == 1) ? "down"
+                          : (dir == 2) ? "left"
+                                       : "right";
     YA_LOG_TRACE("Mouse wheel amount=%d, direction=%s", steps, dir_str);
-    for (int i = 0; i < steps; ++i)
+
+    YAError err = input_mouse_scroll(steps, dir);
+    if (err != Success)
     {
-        enum YAError err = Success;
-        err = mouse_button(wheel_btn, Click);
-        if (err != Success)
-        {
-            YA_LOG_ERROR("Failed to scroll mouse wheel at step %d/%d: %d", i + 1, steps, err);
-        }
+        YA_LOG_ERROR("Mouse scroll failed: error %d", err);
     }
 #endif
     return NULL;
@@ -467,7 +526,7 @@ YAEvent *handle_keyboard(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
-    // 操作类型
+    // Map operation to direction
     enum CDirection dir;
     switch (req->op)
     {
@@ -485,161 +544,37 @@ YAEvent *handle_keyboard(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
-    enum CKey base_key;
-    bool is_ascii = (req->code >= 0x20 && req->code <= 0x7E);
-    if (!is_ascii)
-    {
-        if (!ckey_from_protocol(req->code, &base_key))
-        {
-            YA_LOG_ERROR("Unknown YA key code: %d", req->code);
+    // Determine if character or function key
+    // ASCII printable: 0x20-0x7E
+    // Unicode characters: 0x80-0xDFFF (excluding YA protocol range 0xE000+)
+    bool is_char = false;
+    if (req->code >= 0x20 && req->code <= 0x7E) {
+        // ASCII printable range
+        is_char = true;
+    } else if (req->code >= 0x80 && req->code < 0xE000) {
+        // Unicode range (excluding YA protocol codes)
+        is_char = true;
+    }
+    
+    // Delegate to keyboard handler
+    YAError err;
+    if (is_char) {
+        // Character input: pass codepoint directly
+        err = keyboard_char(req->code, req->mods, dir);
+    } else {
+        // Function key: convert protocol code to CKey first
+        enum CKey key;
+        if (!ckey_from_protocol(req->code, &key)) {
+            YA_LOG_ERROR("Unknown YA key code: 0x%X", req->code);
             return NULL;
         }
+        err = keyboard_function_key(key, req->mods, dir);
     }
-
-    // 修饰位
-    bool mod_shift = (req->mods & CHORD_MOD_SHIFT) != 0;
-    bool mod_ctrl = (req->mods & CHORD_MOD_CTRL) != 0;
-    bool mod_alt = (req->mods & CHORD_MOD_ALT) != 0;
-    bool mod_meta = (req->mods & CHORD_MOD_META) != 0;
-    bool mod_fn = (req->mods & CHORD_MOD_FN) != 0;
-
-    // 执行序列（加锁，保证在多客户端下按键注入的原子性与顺序）
-    ya_key_lock();
-    if (dir == Click)
+    
+    if (err != Success)
     {
-        bool pressed_shift = false, pressed_ctrl = false, pressed_alt = false, pressed_meta = false;
-        if (mod_shift)
-        {
-            (void)key_action(Shift, Press);
-            pressed_shift = true;
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_ctrl)
-        {
-            (void)key_action(Control, Press);
-            pressed_ctrl = true;
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_alt)
-        {
-            (void)key_action(Alt, Press);
-            pressed_alt = true;
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_meta)
-        {
-            (void)key_action(Meta, Press);
-            pressed_meta = true;
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-
-        // 与主键之间留出有效间隔
-        ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        if (is_ascii)
-        {
-            (void)ya_inject_ascii((int32_t)req->code, Click);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        else
-        {
-            // 显式地分解 Click 为 Press/Release，可控间隔
-            (void)key_action(base_key, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-            (void)key_action(base_key, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-
-        if (pressed_meta)
-        {
-            (void)key_action(Meta, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (pressed_alt)
-        {
-            (void)key_action(Alt, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (pressed_ctrl)
-        {
-            (void)key_action(Control, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (pressed_shift)
-        {
-            (void)key_action(Shift, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
+        YA_LOG_ERROR("Keyboard input failed: error %d", err);
     }
-    else if (dir == Press)
-    {
-        if (mod_shift)
-        {
-            (void)key_action(Shift, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_ctrl)
-        {
-            (void)key_action(Control, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_alt)
-        {
-            (void)key_action(Alt, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_meta)
-        {
-            (void)key_action(Meta, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-
-        ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        if (is_ascii)
-        {
-            (void)ya_inject_ascii((int32_t)req->code, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        else
-        {
-            (void)key_action(base_key, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-    }
-    else
-    {
-        // Release 顺序：先主键，后修饰键
-        if (is_ascii)
-        {
-            (void)ya_inject_ascii((int32_t)req->code, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        else
-        {
-            (void)key_action(base_key, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_meta)
-        {
-            (void)key_action(Meta, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_alt)
-        {
-            (void)key_action(Alt, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (mod_ctrl)
-        {
-            (void)key_action(Control, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-        if (!is_ascii && mod_shift)
-        {
-            (void)key_action(Shift, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-        }
-    }
-    ya_key_unlock();
 #endif
     return NULL;
 }
@@ -649,54 +584,15 @@ YAEvent *handle_input_text(struct bufferevent *bev, YAEvent *event)
 #ifndef YAYA_TESTS
     const YATextInputEventRequest *request = (YATextInputEventRequest *)event->param;
 
-    // 读取配置开关：[input].clipboard_fallback
-    bool fallback_enabled = false;
-    {
-        const char* cf = ya_config_get(&config, "input", "clipboard_fallback");
-        if (cf && (strcmp(cf, "1") == 0 || strcmp(cf, "true") == 0 || strcmp(cf, "on") == 0 || strcmp(cf, "yes") == 0))
-        {
-            fallback_enabled = true;
-        }
-    }
 
-    // 首先尝试直接插入文本
+    #ifdef USE_UINPUT
+    enum YAError err = PlatformError;
+    #else
     enum YAError err = enter_text(request->text);
-    if (err != Success && fallback_enabled)
+    #endif
+    if (err != Success)
     {
-        YA_LOG_DEBUG("enter_text failed (%d), trying clipboard fallback...", (int)err);
-
-        // 备份现有剪贴板（允许失败）
-        const char *backup = clipboard_get();
-
-        // 设置剪贴板为要输入的文本
-        enum YAError cerr = clipboard_set(request->text);
-        if (cerr != Success)
-        {
-            YA_LOG_WARN("clipboard_set failed in fallback: %d", (int)cerr);
-        }
-        else
-        {
-            // 发送 Shift+Insert 粘贴序列
-            ya_key_lock();
-            (void)key_action(Shift, Press);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-            (void)key_action(Insert, Click);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-            (void)key_action(Shift, Release);
-            ya_key_sleep_ms(YA_KEY_DELAY_MS);
-            ya_key_unlock();
-        }
-
-        // 恢复剪贴板（尽力而为）
-        if (backup)
-        {
-            enum YAError rerr = clipboard_set(backup);
-            if (rerr != Success)
-            {
-                YA_LOG_TRACE("restore clipboard failed: %d", (int)rerr);
-            }
-            free_string((char *)backup);
-        }
+        clipboard_paste_text(request->text);
     }
 #endif
     return NULL;
@@ -716,7 +612,7 @@ YAEvent *handle_input_get(struct bufferevent *bev, YAEvent *event)
 #endif
 
     // 全选并复制: Modifier + A, Modifier + C（静默执行）
-    err = key_action(modifier, Press);
+    err = input_key_action(modifier, Press);
     if (err != Success)
     {
         goto cleanup;
@@ -725,18 +621,18 @@ YAEvent *handle_input_get(struct bufferevent *bev, YAEvent *event)
     err = key_action_with_code('a', Click);
     if (err != Success)
     {
-        key_action(modifier, Release);
+        input_key_action(modifier, Release);
         goto cleanup;
     }
 
     err = key_action_with_code('c', Click);
     if (err != Success)
     {
-        key_action(modifier, Release);
+        input_key_action(modifier, Release);
         goto cleanup;
     }
 
-    err = key_action(modifier, Release);
+    err = input_key_action(modifier, Release);
     if (err != Success)
     {
         goto cleanup;
@@ -925,6 +821,7 @@ static const struct
     ya_event_handler_t handler;
 } event_handlers[] = {
     {MOUSE_MOVE, handle_mouse_move},
+    {MOUSE_STOP, handle_mouse_stop},
     {MOUSE_CLICK, handle_mouse_click},
     {MOUSE_WHEEL, handle_mouse_scroll},
     {KEYBOARD, handle_keyboard}, 

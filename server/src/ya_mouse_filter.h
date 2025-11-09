@@ -17,6 +17,9 @@ typedef struct {
 ya_mouse_filter_t *ya_mouse_filter_create(void);
 void ya_mouse_filter_destroy(ya_mouse_filter_t *ctx);
 
+// 重置滤波器状态（清除速度EMA和子像素累积）
+void ya_mouse_filter_reset_state(ya_mouse_filter_t *ctx);
+
 // 运行时配置（可按客户端切换）
 void ya_mouse_filter_set_curve_enabled(ya_mouse_filter_t *ctx, bool enabled);
 void ya_mouse_filter_set_ema_alpha(ya_mouse_filter_t *ctx, float alpha);

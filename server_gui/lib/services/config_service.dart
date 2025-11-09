@@ -163,7 +163,7 @@ class ConfigService {
     Directory dir = Directory(Directory.current.path);
     for (int i = 0; i < 15; i++) {
       final base = path.basename(dir.path);
-      if (base == 'mousehero') {
+      if (base.toLowerCase() == 'mousehero') {
         return dir.path;
       }
       final parent = dir.parent;

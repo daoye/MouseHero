@@ -433,17 +433,40 @@ static int parse_session_option_request(const char *data, size_t len, void **out
 static int serialize_authorize_response(const void *param, size_t unused, mpack_writer_t *writer)
 {
     const YAAuthorizeEventResponse *resp = param;
-    // [success(bool), os_type(u32), uid(u32), session_port(u32), command_port(u32), macs(str), display_scale(float)]
-    mpack_start_array(writer, 7);
-    mpack_write_bool(writer, resp->success);
-    mpack_write_u32(writer, resp->os_type);
-    mpack_write_u32(writer, resp->uid);
-    mpack_write_u32(writer, (uint32_t)resp->session_port);
-    mpack_write_u32(writer, (uint32_t)resp->command_port);
-    const char *macs = resp->macs ? resp->macs : "";
-    mpack_write_str(writer, macs, strlen(macs));
-    mpack_write_float(writer, resp->display_scale);
-    mpack_finish_array(writer);
+    
+    // 根据客户端版本决定响应格式
+    // client_version 字段存储的是客户端版本
+    if (resp->client_version >= 2)
+    {
+        // Protocol v2: 8 fields [success, os_type, uid, session_port, command_port, macs, display_scale, protocol_version]
+        mpack_start_array(writer, 8);
+        mpack_write_bool(writer, resp->success);
+        mpack_write_u32(writer, resp->os_type);
+        mpack_write_u32(writer, resp->uid);
+        mpack_write_u32(writer, (uint32_t)resp->session_port);
+        mpack_write_u32(writer, (uint32_t)resp->command_port);
+        const char *macs = resp->macs ? resp->macs : "";
+        mpack_write_str(writer, macs, strlen(macs));
+        mpack_write_float(writer, resp->display_scale);
+        mpack_write_u32(writer, YA_PROTOCOL_VERSION); // 发送服务端协议版本
+        mpack_finish_array(writer);
+    }
+    else
+    {
+        // Protocol v1: 7 fields [success, os_type, uid, session_port, command_port, macs, display_scale]
+        // 兼容旧客户端
+        mpack_start_array(writer, 7);
+        mpack_write_bool(writer, resp->success);
+        mpack_write_u32(writer, resp->os_type);
+        mpack_write_u32(writer, resp->uid);
+        mpack_write_u32(writer, (uint32_t)resp->session_port);
+        mpack_write_u32(writer, (uint32_t)resp->command_port);
+        const char *macs = resp->macs ? resp->macs : "";
+        mpack_write_str(writer, macs, strlen(macs));
+        mpack_write_float(writer, resp->display_scale);
+        mpack_finish_array(writer);
+    }
+    
     return 0;
 }
 

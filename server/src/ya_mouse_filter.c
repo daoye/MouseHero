@@ -69,6 +69,15 @@ void ya_mouse_filter_destroy(ya_mouse_filter_t *ctx) {
     free(ctx);
 }
 
+void ya_mouse_filter_reset_state(ya_mouse_filter_t *ctx) {
+    if (!ctx) return;
+    ctx->vex = 0.0f;
+    ctx->vey = 0.0f;
+    ctx->frac_x = 0.0f;
+    ctx->frac_y = 0.0f;
+    YA_LOG_TRACE("[mf] Filter state reset: velocity and subpixel accumulation cleared");
+}
+
 void ya_mouse_filter_set_curve_enabled(ya_mouse_filter_t *ctx, bool enabled) { (void)ctx; (void)enabled; }
 
 void ya_mouse_filter_set_ema_alpha(ya_mouse_filter_t *ctx, float alpha) { (void)ctx; (void)alpha; }
