@@ -300,6 +300,17 @@ void xkbmap_free(void) {
     if (g_xkb.ctx) {
         xkb_context_unref(g_xkb.ctx);
         g_xkb.ctx = NULL;
+    }
+    
+    g_xkb.initialized = false;
+#endif
+}
+
+bool xkbmap_map_utf8_to_evdev(const char* utf8, int* evdev_key, unsigned* mods_mask) {
+#ifdef HAVE_LIBXKBCOMMON
+    if (!g_xkb.initialized || !utf8 || !evdev_key || !mods_mask) {
+        return false;
+    }
     
     // Decode UTF-8 to code point (simple single-byte or multi-byte)
     uint32_t cp = 0;
