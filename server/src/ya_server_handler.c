@@ -268,12 +268,9 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
 
     int out_dx = dx_px;
     int out_dy = dy_px;
-    if (ya_is_wayland_session())
+    if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
     {
-        if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
-        {
-            return NULL;
-        }
+        return NULL;
     }
 
     ya_mouse_step_t steps[128];

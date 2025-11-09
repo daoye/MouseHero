@@ -8,9 +8,9 @@ typedef struct
     bool has_last_emit;
     int accum_dx;
     int accum_dy;
-} YALinuxMouseThrottleState;
+} YAMouseThrottleState;
 
-static YALinuxMouseThrottleState g_linux_mouse_throttle = {
+static YAMouseThrottleState g_mouse_throttle = {
     .has_last_emit = false,
     .accum_dx = 0,
     .accum_dy = 0,
@@ -27,9 +27,9 @@ static double timespec_diff_ms(const struct timespec *lhs, const struct timespec
 
 void ya_mouse_throttle_reset(void)
 {
-    g_linux_mouse_throttle.accum_dx = 0;
-    g_linux_mouse_throttle.accum_dy = 0;
-    g_linux_mouse_throttle.has_last_emit = false;
+    g_mouse_throttle.accum_dx = 0;
+    g_mouse_throttle.accum_dy = 0;
+    g_mouse_throttle.has_last_emit = false;
 }
 
 bool ya_mouse_throttle_collect(int dx, int dy, bool force_flush, int *out_dx, int *out_dy)
@@ -39,8 +39,8 @@ bool ya_mouse_throttle_collect(int dx, int dy, bool force_flush, int *out_dx, in
         return false;
     }
 
-    g_linux_mouse_throttle.accum_dx += dx;
-    g_linux_mouse_throttle.accum_dy += dy;
+    g_mouse_throttle.accum_dx += dx;
+    g_mouse_throttle.accum_dy += dy;
 
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
@@ -48,13 +48,13 @@ bool ya_mouse_throttle_collect(int dx, int dy, bool force_flush, int *out_dx, in
     bool should_emit = force_flush;
     if (!should_emit)
     {
-        if (!g_linux_mouse_throttle.has_last_emit)
+        if (!g_mouse_throttle.has_last_emit)
         {
             should_emit = true;
         }
         else
         {
-            double elapsed = timespec_diff_ms(&now, &g_linux_mouse_throttle.last_emit);
+            double elapsed = timespec_diff_ms(&now, &g_mouse_throttle.last_emit);
             if (elapsed >= THROTTLE_INTERVAL_MS)
             {
                 should_emit = true;
@@ -67,18 +67,18 @@ bool ya_mouse_throttle_collect(int dx, int dy, bool force_flush, int *out_dx, in
         return false;
     }
 
-    if (g_linux_mouse_throttle.accum_dx == 0 && g_linux_mouse_throttle.accum_dy == 0)
+    if (g_mouse_throttle.accum_dx == 0 && g_mouse_throttle.accum_dy == 0)
     {
-        g_linux_mouse_throttle.last_emit = now;
-        g_linux_mouse_throttle.has_last_emit = true;
+        g_mouse_throttle.last_emit = now;
+        g_mouse_throttle.has_last_emit = true;
         return false;
     }
 
-    *out_dx = g_linux_mouse_throttle.accum_dx;
-    *out_dy = g_linux_mouse_throttle.accum_dy;
-    g_linux_mouse_throttle.accum_dx = 0;
-    g_linux_mouse_throttle.accum_dy = 0;
-    g_linux_mouse_throttle.last_emit = now;
-    g_linux_mouse_throttle.has_last_emit = true;
+    *out_dx = g_mouse_throttle.accum_dx;
+    *out_dy = g_mouse_throttle.accum_dy;
+    g_mouse_throttle.accum_dx = 0;
+    g_mouse_throttle.accum_dy = 0;
+    g_mouse_throttle.last_emit = now;
+    g_mouse_throttle.has_last_emit = true;
     return true;
 }
