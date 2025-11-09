@@ -277,28 +277,56 @@ static YAError input_char_unified(int32_t codepoint, uint32_t user_mods, enum CD
     
     // Try platform mapping
     if (map_char_to_platform(codepoint, &platform_code, &platform_shift) == Success) {
+        
         // Press user modifiers
-        if (user_mods & CHORD_MOD_SHIFT) input_key_action(Shift, Press);
-        if (user_mods & CHORD_MOD_CTRL) input_key_action(Control, Press);
-        if (user_mods & CHORD_MOD_ALT) input_key_action(Alt, Press);
-        if (user_mods & CHORD_MOD_META) input_key_action(Meta, Press);
+        if (user_mods & CHORD_MOD_SHIFT) {
+            input_key_action(Shift, Press);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_CTRL) {
+            input_key_action(Control, Press);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_ALT) {
+            input_key_action(Alt, Press);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_META) {
+            input_key_action(Meta, Press);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
         
         // Press platform shift if needed (and not already pressed)
         if (platform_shift && !(user_mods & CHORD_MOD_SHIFT)) {
             input_key_action(Shift, Press);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
         }
         
         // Inject key
         YAError err = key_action_with_platform_code(platform_code, dir);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
         
         // Release modifiers in reverse
         if (platform_shift && !(user_mods & CHORD_MOD_SHIFT)) {
             input_key_action(Shift, Release);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
         }
-        if (user_mods & CHORD_MOD_META) input_key_action(Meta, Release);
-        if (user_mods & CHORD_MOD_ALT) input_key_action(Alt, Release);
-        if (user_mods & CHORD_MOD_CTRL) input_key_action(Control, Release);
-        if (user_mods & CHORD_MOD_SHIFT) input_key_action(Shift, Release);
+        if (user_mods & CHORD_MOD_META) {
+            input_key_action(Meta, Release);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_ALT) {
+            input_key_action(Alt, Release);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_CTRL) {
+            input_key_action(Control, Release);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
+        if (user_mods & CHORD_MOD_SHIFT) {
+            input_key_action(Shift, Release);
+            ya_key_sleep_ms(YA_KEY_DELAY_MS);
+        }
         
         return err;
     }
@@ -309,17 +337,42 @@ static YAError input_char_unified(int32_t codepoint, uint32_t user_mods, enum CD
 
 // Non-Linux function key
 static YAError input_function_key(enum CKey key, uint32_t user_mods, enum CDirection dir) {
-    if (user_mods & CHORD_MOD_SHIFT) input_key_action(Shift, Press);
-    if (user_mods & CHORD_MOD_CTRL) input_key_action(Control, Press);
-    if (user_mods & CHORD_MOD_ALT) input_key_action(Alt, Press);
-    if (user_mods & CHORD_MOD_META) input_key_action(Meta, Press);
+    if (user_mods & CHORD_MOD_SHIFT) {
+        input_key_action(Shift, Press);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_CTRL) {
+        input_key_action(Control, Press);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_ALT) {
+        input_key_action(Alt, Press);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_META) {
+        input_key_action(Meta, Press);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
     
     YAError err = input_key_action(key, dir);
+    ya_key_sleep_ms(YA_KEY_DELAY_MS);
     
-    if (user_mods & CHORD_MOD_META) input_key_action(Meta, Release);
-    if (user_mods & CHORD_MOD_ALT) input_key_action(Alt, Release);
-    if (user_mods & CHORD_MOD_CTRL) input_key_action(Control, Release);
-    if (user_mods & CHORD_MOD_SHIFT) input_key_action(Shift, Release);
+    if (user_mods & CHORD_MOD_META) {
+        input_key_action(Meta, Release);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_ALT) {
+        input_key_action(Alt, Release);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_CTRL) {
+        input_key_action(Control, Release);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
+    if (user_mods & CHORD_MOD_SHIFT) {
+        input_key_action(Shift, Release);
+        ya_key_sleep_ms(YA_KEY_DELAY_MS);
+    }
     
     return err;
 }
