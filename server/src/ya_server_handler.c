@@ -1,4 +1,5 @@
 #include <limits.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -13,8 +14,8 @@
 #include "ya_event.h"
 #include "ya_logger.h"
 #include "ya_mouse_filter.h"
-#include "ya_utils.h"
 #include "ya_mouse_throttle.h"
+#include "ya_utils.h"
 #include "ya_server.h"
 #include "ya_server_handler.h"
 #include "ya_power_scripts.h"
@@ -157,6 +158,10 @@ YAEvent *handle_authorize(struct bufferevent *bev, YAEvent *event)
 
         client->bev = bev; // The connection owns the bufferevent
         response->uid = client->uid;
+        
+        // 保存客户端协议版本到客户端结构体
+        client->protocol_version = client_version;
+        YA_LOG_INFO("Client %u authorized with protocol version %u", client->uid, client_version);
 
         // 填充端口（主机序）
         response->session_port = ntohs(svr_context.session_sock_addr.sin_port);
@@ -263,55 +268,102 @@ YAEvent *handle_mouse_move(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
-
-    // 将客户端放大后的相对位移缩小还原为像素，再交给服务端滤波模块
     const double kRecvScale = 100.0; // 与前端 MouseController.kSendScale 保持一致
     const int rx = (int)request->lparam;
     const int ry = (int)request->rparam;
     const double fdx = ((double)rx) / kRecvScale;
     const double fdy = ((double)ry) / kRecvScale;
-    const int dx_px = (int)(fdx >= 0.0 ? fdx + 0.5 : fdx - 0.5); // 四舍五入为像素
-    const int dy_px = (int)(fdy >= 0.0 ? fdy + 0.5 : fdy - 0.5);
 
-    YA_LOG_TRACE("[handler] Received: raw=(%d,%d) -> pixels=(%d,%d)", rx, ry, dx_px, dy_px);
-
-    int out_dx = dx_px;
-    int out_dy = dy_px;
-    if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
+    // 根据客户端协议版本选择处理路径
+    if (client->protocol_version >= 3)
     {
-        YA_LOG_TRACE("[handler] Throttled, accumulated but not emitted yet");
-        return NULL;
-    }
+        // ===== 新架构 (Protocol v3+): 客户端已完成加速和平滑，服务端只做子像素累积 =====
+        YA_LOG_TRACE("[handler v3] Received: raw=(%d,%d) -> float=(%.3f,%.3f)", rx, ry, fdx, fdy);
 
-    YA_LOG_TRACE("[handler] After throttle: (%d,%d)", out_dx, out_dy);
-
-    ya_mouse_step_t steps[128];
-    size_t out_n = 0;
-
-    if (client->mouse_filter)
-    {
-        // 交给滤波模块生成若干微步
-        ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, (sizeof(steps) / sizeof(steps[0])), &out_n);
-    }
-    else 
-    {
-        steps[0].dx = out_dx;
-        steps[0].dy = out_dy;
-        out_n = 1;
-    }
-
-    // 按顺序执行微步，保持轨迹连续
-    for (size_t i = 0; i < out_n; ++i)
-    {
-        int dx = steps[i].dx;
-        int dy = steps[i].dy;
-        if (dx == 0 && dy == 0)
-            continue;
-        
-        YAError e = input_mouse_move(dx, dy);
-        if (e != Success)
+        if (!client->mouse_filter)
         {
-            YA_LOG_ERROR("Failed to move mouse (step %zu/%zu): %d", i + 1, out_n, e);
+            YA_LOG_ERROR("Client mouse_filter not initialized");
+            return NULL;
+        }
+
+        // 累积浮点位移
+        client->mouse_filter->frac_x += fdx;
+        client->mouse_filter->frac_y += fdy;
+
+        // 量化为整数像素
+        int dx = 0, dy = 0;
+        if (fabsf(client->mouse_filter->frac_x) >= 1.0f)
+        {
+            dx = (int)(client->mouse_filter->frac_x > 0.0f 
+                       ? floorf(client->mouse_filter->frac_x) 
+                       : ceilf(client->mouse_filter->frac_x));
+            client->mouse_filter->frac_x -= (float)dx;
+        }
+        if (fabsf(client->mouse_filter->frac_y) >= 1.0f)
+        {
+            dy = (int)(client->mouse_filter->frac_y > 0.0f 
+                       ? floorf(client->mouse_filter->frac_y) 
+                       : ceilf(client->mouse_filter->frac_y));
+            client->mouse_filter->frac_y -= (float)dy;
+        }
+
+        YA_LOG_TRACE("[handler v3] Subpixel: frac=(%.3f,%.3f) output=(%d,%d)", 
+                     client->mouse_filter->frac_x, client->mouse_filter->frac_y, dx, dy);
+
+        if (dx != 0 || dy != 0)
+        {
+            YAError e = input_mouse_move(dx, dy);
+            if (e != Success)
+            {
+                YA_LOG_ERROR("Failed to move mouse: (%d,%d) error=%d", dx, dy, e);
+            }
+        }
+    }
+    else
+    {
+        // ===== 旧架构 (Protocol v2): 使用节流器和完整滤波器 =====
+        const int dx_px = (int)(fdx >= 0.0 ? fdx + 0.5 : fdx - 0.5);
+        const int dy_px = (int)(fdy >= 0.0 ? fdy + 0.5 : fdy - 0.5);
+
+        YA_LOG_TRACE("[handler v2] Received: raw=(%d,%d) -> pixels=(%d,%d)", rx, ry, dx_px, dy_px);
+
+        int out_dx = dx_px;
+        int out_dy = dy_px;
+        if (!ya_mouse_throttle_collect(dx_px, dy_px, false, &out_dx, &out_dy))
+        {
+            YA_LOG_TRACE("[handler v2] Throttled, accumulated but not emitted yet");
+            return NULL;
+        }
+
+        YA_LOG_TRACE("[handler v2] After throttle: (%d,%d)", out_dx, out_dy);
+
+        ya_mouse_step_t steps[128];
+        size_t out_n = 0;
+
+        if (client->mouse_filter)
+        {
+            ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, 
+                                   (sizeof(steps) / sizeof(steps[0])), &out_n);
+        }
+        else 
+        {
+            steps[0].dx = out_dx;
+            steps[0].dy = out_dy;
+            out_n = 1;
+        }
+
+        for (size_t i = 0; i < out_n; ++i)
+        {
+            int dx = steps[i].dx;
+            int dy = steps[i].dy;
+            if (dx == 0 && dy == 0)
+                continue;
+            
+            YAError e = input_mouse_move(dx, dy);
+            if (e != Success)
+            {
+                YA_LOG_ERROR("Failed to move mouse (step %zu/%zu): %d", i + 1, out_n, e);
+            }
         }
     }
 #endif
@@ -334,51 +386,62 @@ YAEvent *handle_mouse_stop(struct bufferevent *bev, YAEvent *event)
         return NULL;
     }
 
-    YA_LOG_TRACE("[handler] Mouse stop event received, flushing throttle and resetting filter");
-
-    // 刷新节流器中累积的移动
-    int out_dx = 0, out_dy = 0;
-    if (ya_mouse_throttle_flush(&out_dx, &out_dy))
+    if (client->protocol_version >= 3)
     {
-        YA_LOG_TRACE("[handler] Flushed throttle: (%d,%d)", out_dx, out_dy);
+        // 新架构 (v3+): 只重置子像素累积
+        YA_LOG_TRACE("[handler v3] Mouse stop, resetting subpixel accumulation");
+        if (client->mouse_filter)
+        {
+            ya_mouse_filter_reset_state(client->mouse_filter);
+        }
+    }
+    else
+    {
+        // 旧架构 (v2): 刷新节流器并重置滤波器
+        YA_LOG_TRACE("[handler v2] Mouse stop, flushing throttle and resetting filter");
 
-        ya_mouse_step_t steps[128];
-        size_t out_n = 0;
+        int out_dx = 0, out_dy = 0;
+        if (ya_mouse_throttle_flush(&out_dx, &out_dy))
+        {
+            YA_LOG_TRACE("[handler v2] Flushed throttle: (%d,%d)", out_dx, out_dy);
+
+            ya_mouse_step_t steps[128];
+            size_t out_n = 0;
+
+            if (client->mouse_filter)
+            {
+                ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, 
+                                       (sizeof(steps) / sizeof(steps[0])), &out_n);
+            }
+            else
+            {
+                steps[0].dx = out_dx;
+                steps[0].dy = out_dy;
+                out_n = 1;
+            }
+
+            for (size_t i = 0; i < out_n; ++i)
+            {
+                int dx = steps[i].dx;
+                int dy = steps[i].dy;
+                if (dx == 0 && dy == 0)
+                    continue;
+
+                YAError e = input_mouse_move(dx, dy);
+                if (e != Success)
+                {
+                    YA_LOG_ERROR("Failed to move mouse (flush step %zu/%zu): %d", i + 1, out_n, e);
+                }
+            }
+        }
 
         if (client->mouse_filter)
         {
-            ya_mouse_filter_process(client->mouse_filter, out_dx, out_dy, steps, (sizeof(steps) / sizeof(steps[0])), &out_n);
-        }
-        else
-        {
-            steps[0].dx = out_dx;
-            steps[0].dy = out_dy;
-            out_n = 1;
+            ya_mouse_filter_reset_state(client->mouse_filter);
         }
 
-        for (size_t i = 0; i < out_n; ++i)
-        {
-            int dx = steps[i].dx;
-            int dy = steps[i].dy;
-            if (dx == 0 && dy == 0)
-                continue;
-
-            YAError e = input_mouse_move(dx, dy);
-            if (e != Success)
-            {
-                YA_LOG_ERROR("Failed to move mouse (flush step %zu/%zu): %d", i + 1, out_n, e);
-            }
-        }
+        ya_mouse_throttle_reset();
     }
-
-    // 重置滤波器状态（清除EMA速度和子像素累积）
-    if (client->mouse_filter)
-    {
-        ya_mouse_filter_reset_state(client->mouse_filter);
-    }
-
-    // 重置节流器状态
-    ya_mouse_throttle_reset();
 #endif
     return NULL;
 }

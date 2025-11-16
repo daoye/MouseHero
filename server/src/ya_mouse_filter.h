@@ -4,9 +4,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// 前置声明，避免循环依赖
-struct ya_mouse_filter;
-typedef struct ya_mouse_filter ya_mouse_filter_t;
+// 鼠标滤波器结构体（支持新旧两种模式）
+typedef struct ya_mouse_filter {
+    float pointer_scale;  // 指针全局缩放（灵敏度）
+    bool  algorithms_enabled; // 算法总开关（false 时透传输入）
+    
+    // 状态 - 旧版本 (v2) 需要的字段
+    float vex;  // 速度 EMA x (仅 v2 使用)
+    float vey;  // 速度 EMA y (仅 v2 使用)
+    
+    // 状态 - 子像素累积 (v2 和 v3 都使用)
+    float frac_x; // 子像素累计 x
+    float frac_y; // 子像素累计 y
+} ya_mouse_filter_t;
 
 typedef struct {
     int dx;

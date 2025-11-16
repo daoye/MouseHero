@@ -104,6 +104,7 @@ ya_client_t *ya_client_create(ya_client_manager_t *manager, evutil_socket_t fd, 
     client->bev = bev;
     client->mouse_filter = ya_mouse_filter_create();
     client->connected_at = time(NULL);
+    client->protocol_version = 0;  // 初始化为0，在授权时更新
     if (!client->mouse_filter) {
         YA_LOG_ERROR("Failed to create mouse filter for client %u", client->uid);
         // 不中断创建流程，但记录日志
