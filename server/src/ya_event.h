@@ -31,7 +31,9 @@
 #define DISCOVERY_MAGIC 0x4B424D43
 
 // Protocol version for client-server compatibility check
-#define YA_PROTOCOL_VERSION 2
+// Version 2: Legacy (with throttle and full filter)
+// Version 3: New architecture (client-side acceleration, server-side subpixel only)
+#define YA_PROTOCOL_VERSION 3
 
 typedef enum
 {

@@ -30,6 +30,7 @@ typedef struct ya_client {
     // 服务器端挂载的鼠标移动平滑上下文（按客户端隔离）
     ya_mouse_filter_t *mouse_filter;
     time_t connected_at;        // 连接建立时间（Unix 时间戳，秒）
+    uint32_t protocol_version;  // 客户端协议版本 (用于兼容性判断)
 } ya_client_t;
 
 // 客户端管理器结构体

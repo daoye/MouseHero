@@ -10,42 +10,25 @@
 #endif
 
 /*
- * 鼠标移动滤波 算法说明
+ * 鼠标移动滤波 算法说明 (简化版 - 2024重构)
  *
+ * 新架构：客户端负责加速和平滑，服务端只做轻量级处理
  * 
- *  1) 速度估计（EMA）：用轻量速度 EMA 稳定瞬时速度估计。
- *     v_ema[t] = alpha_v * v_in[t] + (1 - alpha_v) * v_ema[t-1]
- *     其中 v_in[t] 取本帧相对位移（像素）作为速度近似。
+ * 服务端职责：
+ *  1) 子像素累积：将浮点位移累积，当累积值 >= 1 像素时输出整数步进
+ *  2) 可选的灵敏度调节：pointer_scale 提供全局缩放
+ *  3) 算法开关：algorithms_enabled 可关闭所有处理，直接透传
  *
- *  2) 简单加速度（速度相关增益）：
- *     gain = base * (1 + k * max(|v_ema|-v0, 0)^p), 然后限制到 accel_max。
- *     直觉：低速≈1，高速适度放大，跨屏不吃力；参数均可由客户端后续下发覆盖。
+ * 客户端职责 (Flutter TouchpadAccelerator)：
+ *  1) 速度计算：基于时间戳的真实速度 (px/s)
+ *  2) 动态加速：非线性加速曲线 gain = f(velocity)
+ *  3) 低通滤波：平滑输出，减少抖动
  *
- *  3) DPI/灵敏度 + 子像素累计：
- *     f = (dx,dy) * pointer_scale * gain
- *     累计到 (frac_x, frac_y)，当 |frac| >= 1 时取整输出一次步子，并回收整数部分：
- *       qx = floor(frac_x) 或 ceil(frac_x)（按正负分别取地板/天花板以减少偏置）
- *       frac_x -= qx，y 同理。
- *     每次最多输出 1 步（与 handler 的注入循环兼容）；若量化后为 (0,0)，则不输出。
- *
- * 参数影响：
- *  - pointer_scale：线性敏感度，整体快慢首选参数。
- *  - alpha_v：速度 EMA 系数，越大越灵敏（抖动可能增），越小越稳（响应略慢）。
- *  - accel_k / v0 / p / accel_max：控制速度相关增益的爬升速度、起点、形状与上限。
- *
- * 平台差异：
- *  - 算法仅输出相对步子，不涉屏幕坐标系；若平台注入层 Y 方向与直觉相反，应在注入层做一次翻转。
+ * 优势：
+ *  - 延迟更低：客户端高帧率处理，无需等待网络往返
+ *  - 体验更好：速度计算更准确，加速曲线更平滑
+ *  - 架构清晰：职责分离，便于调试和优化
  */
-struct ya_mouse_filter {
-    float pointer_scale;  // 指针全局缩放（灵敏度）
-    bool  algorithms_enabled; // 算法总开关（false 时透传输入）
-
-    // 状态
-    float vex;  // 速度 EMA x
-    float vey;  // 速度 EMA y
-    float frac_x; // 子像素累计 x
-    float frac_y; // 子像素累计 y
-};
 
 static inline float clampf(float v, float lo, float hi) {
     return v < lo ? lo : (v > hi ? hi : v);
@@ -55,11 +38,11 @@ ya_mouse_filter_t *ya_mouse_filter_create(void) {
     ya_mouse_filter_t *ctx = (ya_mouse_filter_t *)calloc(1, sizeof(ya_mouse_filter_t));
     if (!ctx) return NULL;
     // 默认：基线参数
-    ctx->pointer_scale = 1.0f; // DPI
+    ctx->pointer_scale = 1.0f; // 默认灵敏度
     ctx->algorithms_enabled = true;
-    ctx->vex = 0.0f;
-    ctx->vey = 0.0f;
-    ctx->frac_x = 0.0f;
+    ctx->vex = 0.0f;    // 速度 EMA x (v2)
+    ctx->vey = 0.0f;    // 速度 EMA y (v2)
+    ctx->frac_x = 0.0f; // 子像素累积
     ctx->frac_y = 0.0f;
     return ctx;
 }
@@ -71,11 +54,11 @@ void ya_mouse_filter_destroy(ya_mouse_filter_t *ctx) {
 
 void ya_mouse_filter_reset_state(ya_mouse_filter_t *ctx) {
     if (!ctx) return;
-    ctx->vex = 0.0f;
+    ctx->vex = 0.0f;    // 重置速度 EMA (v2)
     ctx->vey = 0.0f;
-    ctx->frac_x = 0.0f;
+    ctx->frac_x = 0.0f; // 重置子像素累积
     ctx->frac_y = 0.0f;
-    YA_LOG_TRACE("[mf] Filter state reset: velocity and subpixel accumulation cleared");
+    YA_LOG_TRACE("[mf] Filter state reset: EMA velocity and subpixel accumulation cleared");
 }
 
 void ya_mouse_filter_set_curve_enabled(ya_mouse_filter_t *ctx, bool enabled) { (void)ctx; (void)enabled; }
@@ -139,14 +122,16 @@ bool ya_mouse_filter_process(ya_mouse_filter_t *ctx,
         return true;
     }
 
-    // 速度估计（轻量 EMA）
-    // 将相对像素视为“帧速度”，用简单 EMA 提高稳定度
-    const float alpha_v = 0.3f; // 默认值；下个版本由客户端参数覆盖
+    // ===== 旧架构 (Protocol v2): 完整的服务端滤波和加速 =====
+    
+    // 1. 速度估计（轻量 EMA）
+    // 将相对像素视为"帧速度"，用简单 EMA 提高稳定度
+    const float alpha_v = 0.3f; // EMA 系数
     ctx->vex = alpha_v * fx + (1.0f - alpha_v) * ctx->vex;
     ctx->vey = alpha_v * fy + (1.0f - alpha_v) * ctx->vey;
     float speed = sqrtf(ctx->vex * ctx->vex + ctx->vey * ctx->vey);
 
-    // 简单加速度（透明、可调、限幅）
+    // 2. 简单加速度（速度相关增益）
     // gain = base * (1 + k * max(speed - v0, 0)^p), clamp to accel_max
     const float base_gain = 1.0f;
     const float accel_k   = 0.02f;
@@ -158,16 +143,16 @@ bool ya_mouse_filter_process(ya_mouse_filter_t *ctx,
     float gain = base_gain * (1.0f + accel_k * powf(dv, p));
     if (gain > accel_max) gain = accel_max;
 
-    // DPI/灵敏度（pointer_scale 来自客户端参数或默认值）
+    // 3. 应用灵敏度和增益
     fx *= (ctx->pointer_scale * gain);
     fy *= (ctx->pointer_scale * gain);
 
-    YA_LOG_TRACE("[mf] speed=%.3f gain=%.3f after-gain dxdy=(%.3f,%.3f)", speed, gain, fx, fy);
+    YA_LOG_TRACE("[mf v2] speed=%.3f gain=%.3f scaled=(%.3f,%.3f)", speed, gain, fx, fy);
 
-    // 子像素累计与量化
+    // 4. 子像素累计与量化
     ctx->frac_x += fx;
     ctx->frac_y += fy;
-    YA_LOG_TRACE("[mf] accum pre-quant frac=(%.3f,%.3f)", ctx->frac_x, ctx->frac_y);
+    YA_LOG_TRACE("[mf v2] accum frac=(%.3f,%.3f)", ctx->frac_x, ctx->frac_y);
 
     int qx = 0, qy = 0;
     if (fabsf(ctx->frac_x) >= 1.0f) {
@@ -179,7 +164,7 @@ bool ya_mouse_filter_process(ya_mouse_filter_t *ctx,
         ctx->frac_y -= (float)qy;
     }
 
-    YA_LOG_TRACE("[mf] quant q=(%d,%d) frac-after=(%.3f,%.3f)", qx, qy, ctx->frac_x, ctx->frac_y);
+    YA_LOG_TRACE("[mf v2] output=(%d,%d) frac-remain=(%.3f,%.3f)", qx, qy, ctx->frac_x, ctx->frac_y);
 
     if (qx == 0 && qy == 0) {
         *out_count = 0;

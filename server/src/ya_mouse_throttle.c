@@ -17,10 +17,10 @@ static YAMouseThrottleState g_mouse_throttle = {
     .accum_dy = 0,
 };
 
-// 自适应节流间隔：低速时减少延迟，高速时保持批处理
-static const double THROTTLE_INTERVAL_LOW_SPEED_MS = 8.0;   // 低速：8ms (125Hz)
-static const double THROTTLE_INTERVAL_HIGH_SPEED_MS = 32.0; // 高速：32ms (31Hz)
-static const int LOW_SPEED_THRESHOLD = 5; // 累积位移阈值（像素）
+// 优化后的节流间隔：客户端已做平滑，服务端可以更激进地减少延迟
+static const double THROTTLE_INTERVAL_LOW_SPEED_MS = 4.0;   // 低速：4ms (250Hz) - 更低延迟
+static const double THROTTLE_INTERVAL_HIGH_SPEED_MS = 8.0;  // 高速：8ms (125Hz) - 大幅减少延迟
+static const int LOW_SPEED_THRESHOLD = 3; // 累积位移阈值（像素）- 更敏感
 
 static double timespec_diff_ms(const struct timespec *lhs, const struct timespec *rhs)
 {
